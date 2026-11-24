@@ -101,7 +101,7 @@ main{max-width:1400px;margin:0 auto;padding:0 0 calc(var(--nav) + 20px)}
 .modal.open{display:flex}
 .sheet{background:#fff;width:100%;max-width:760px;max-height:94vh;overflow:auto;border-radius:16px 16px 0 0}
 @media(min-width:760px){.modal{align-items:center}.sheet{border-radius:16px}}
-.sheet .photo{aspect-ratio:16/8}
+.sheet .photo{aspect-ratio:16/10}
 .close{position:absolute;top:10px;left:10px;width:36px;height:36px;border-radius:50%;border:0;background:#fff;box-shadow:0 1px 4px #0005;font-size:18px;cursor:pointer;z-index:2}
 .pad{padding:14px 16px 18px}
 .dprice{font-size:30px;font-weight:800;letter-spacing:-.5px}
@@ -130,6 +130,24 @@ textarea.field{min-height:90px;resize:vertical}
 .toast{position:fixed;left:50%;bottom:calc(var(--nav) + 16px);transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 14px;border-radius:10px;z-index:70;display:none;align-items:center;gap:12px;font-size:14px;box-shadow:0 4px 14px #0005}
 .toast button{border:0;background:none;color:#8cc4ff;font-weight:800;cursor:pointer}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* accuracy + owner */
+.conf{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap;text-transform:uppercase;letter-spacing:.3px}
+.c-high{background:#e7f6ec;color:var(--green)}.c-med{background:#fff4d6;color:#8a5a00}.c-low{background:#fde8e8;color:var(--red)}.c-none{background:#f1f1f3;color:#767680}
+.nums{border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:8px}
+.num{padding:12px 14px;border-top:1px solid var(--line)}
+.num:first-child{border-top:0}
+.num .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.num .lbl{font-size:13px;color:var(--muted);font-weight:600}
+.num .val{font-size:20px;font-weight:800;margin-top:2px}
+.num .why{font-size:13px;color:var(--ink2);margin-top:4px}
+.owner{border:1px solid var(--line);border-radius:12px;padding:14px;margin-top:8px}
+.owner .nm{font-size:18px;font-weight:800}
+.owner .line{font-size:14px;color:var(--ink2);margin-top:6px}
+.owner .line b{color:var(--ink)}
+.flag{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;margin-top:8px}
+.f-abs{background:#eef5ff;color:var(--blue)}.f-occ{background:#f1f3f7;color:var(--ink2)}
+.svbtn{position:absolute;right:10px;bottom:10px;background:#fff;border:0;border-radius:8px;padding:7px 11px;font-weight:700;font-size:13px;box-shadow:0 1px 4px #0005;text-decoration:none;color:var(--ink)}
+.overall{display:flex;align-items:center;gap:8px;font-size:14px;margin-top:10px;padding:10px 12px;border-radius:10px;background:#f6f8fb}
 /* map pins */
 .pin{background:var(--blue);color:#fff;font-weight:800;font-size:12px;padding:3px 7px;border-radius:6px;border:2px solid #fff;box-shadow:0 1px 4px #0006;white-space:nowrap;transform:translate(-50%,-100%);display:inline-block}
 .pin.pre{background:var(--red)}.pin.tax{background:var(--orange)}.pin.both{background:var(--purple)}
@@ -284,7 +302,7 @@ function cardHTML(l, mode){
       <button class="heart" data-heart="${esc(l.id)}" aria-label="Save">${heartSVG(l.saved)}</button>
     </div>
     <div class="body">
-      <div class="price">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"}<small>owed</small></div>
+      <div class="price">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"}<small>${l.amountOwedSource === "original-loan" ? "orig. loan" : "owed"}</small></div>
       ${facts ? `<div class="facts">${facts}</div>` : ""}
       <div class="addr">${esc(fullAddr(l))}</div>
       <div class="meta"><span>${[l.propertyType ? esc(l.propertyType) : "", l.keyDate ? "Key date " + fmtDate(l.keyDate) : esc(CITY_COUNTY[l.city] || l.county || "") + " County"].filter(Boolean).join(" · ")}</span>
@@ -385,42 +403,110 @@ function closeModal(){ $("#modal").classList.remove("open"); }
 $("#modal").onclick = e => { if (e.target.id === "modal") closeModal(); };
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
+const OWED_SRC = {
+  "payoff": ["high","High","Current payoff from the lender or Public Trustee."],
+  "lender-bid": ["high","High","Lender's bid at the Public Trustee sale, close to what's owed today."],
+  "tax-delinquency": ["high","High","Back taxes from the County Treasurer."],
+  "original-loan": ["low","Low","This is the ORIGINAL loan amount from the court filing. Today's balance is usually lower, but missed payments, interest, late fees and legal costs get added on top. Could be off by $20K or more. Get the real number from the Public Trustee or lender."],
+  "manual": ["med","Medium","You entered this number."],
+};
+const VALUE_SRC = {
+  "comps": ["high","High","Based on recent nearby sales (comps) or an appraisal."],
+  "assessor": ["med","Medium","County Assessor value. It's only updated every 2 years and often trails the market."],
+  "online": ["med","Medium","Online estimate (Zillow/Redfin). Often 5–10% or more off for distressed homes, which may need repairs."],
+  "manual": ["med","Medium","Your own estimate."],
+};
+function owedConf(l){
+  if (l.amountOwed == null) return ["none","Missing","No amount yet. Look up the case with the " + (CITY_COUNTY[l.city] || l.county || "county") + " County Public Trustee."];
+  return OWED_SRC[l.amountOwedSource] || ["none","Not verified","Where this number came from wasn't recorded. Treat it as a rough guess."];
+}
+function valueConf(l){
+  if (l.estValue == null) return ["none","Missing","No value yet. Check comps or the County Assessor, then enter it below."];
+  return VALUE_SRC[l.estValueSource] || ["none","Not verified","Where this number came from wasn't recorded. Treat it as a rough guess."];
+}
+const RANK = {high:3, med:2, low:1, none:0};
+function equityConf(l){
+  if (equity(l) == null) return ["none","Missing","Needs both the amount owed and the value."];
+  const a = owedConf(l), b = valueConf(l), worst = RANK[a[0]] <= RANK[b[0]] ? a : b;
+  return [worst[0], worst[1], "Only as accurate as its weakest number (value minus amount owed). It doesn't count repairs, closing costs or other liens."];
+}
+const confPill = c => `<span class="conf c-${c[0]}">${c[1]}</span>`;
+function absentee(l){
+  if (!l.ownerMailing) return null;
+  const n = s => String(s).toLowerCase().replace(/\(.*?\)/g,"").replace(/[^a-z0-9]/g,"");
+  const street = n(l.address).slice(0, 10);
+  return !n(l.ownerMailing).includes(street);
+}
+const gSearch = q => "https://www.google.com/search?q=" + encodeURIComponent(q);
+function streetViewLink(l){
+  return (l.lat != null && l.lng != null)
+    ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${l.lat},${l.lng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr(l))}`;
+}
+
 function openLead(id){
   const l = leads.find(x => x.id === id); if (!l) return;
-  const eq = equity(l), st = l.status || "New";
-  const kv = (k, v) => `<div><span>${k}</span><b>${v}</b></div>`;
+  const st = l.status || "New", county = CITY_COUNTY[l.city] || l.county || "";
+  const oc = owedConf(l), vc = valueConf(l), ec = equityConf(l), eq = equity(l);
+  const abs = absentee(l);
+  const owedLbl = l.amountOwedSource === "original-loan" ? "Original loan amount" : l.leadType === "Tax-delinquent" ? "Taxes owed" : "Amount owed";
+  const sel = (id, map, cur, labels) => `<select class="field" id="${id}"><option value="">Where's it from?</option>${Object.keys(labels).map(k => `<option value="${k}" ${k === cur ? "selected" : ""}>${labels[k]}</option>`).join("")}</select>`;
   openModal(`
     <div class="photo" style="position:relative">${photoHTML(l)}<button class="close" id="x">✕</button>
-      <button class="heart" id="dHeart">${heartSVG(l.saved)}</button></div>
+      <button class="heart" id="dHeart">${heartSVG(l.saved)}</button>
+      <a class="svbtn" target="_blank" rel="noopener noreferrer" href="${streetViewLink(l)}">👁 Walk around in Street View</a></div>
     <div class="pad">
-      <div class="dprice">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"} <small style="font-size:15px;color:var(--muted);font-weight:600">owed</small></div>
-      <div class="daddr">${esc(fullAddr(l))}</div>
+      <div class="daddr" style="font-size:19px;font-weight:800">${esc(fullAddr(l))}</div>
       <div class="chips"><span class="chip" style="color:${typeColor(l.leadType)}">● ${esc(l.leadType || "Lead")}</span>
         ${l.propertyType ? `<span class="chip">${esc(l.propertyType)}</span>` : ""}
-        <span class="chip">${esc(CITY_COUNTY[l.city] || l.county || "")} County</span></div>
-      <div class="seg" id="seg">${STATUSES.map(s => `<button data-s="${s}" class="${s === st ? "on" : ""}">${s === "Offer Made" ? "Offer" : s}</button>`).join("")}</div>
-      <div class="kv">
-        ${kv("Est. value", money(l.estValue))}
-        ${kv("Equity est.", eq == null ? "—" : `<span class="eq ${eq < 0 ? "neg" : ""}">${money(eq)}</span>`)}
-        ${kv("Key date", fmtDate(l.keyDate))}
-        ${kv("Taxes owed", money(l.taxOwed))}
-        ${kv("Owner (public record)", esc(l.owner || "—"))}
-        ${kv("Owner mailing address", esc(l.ownerMailing || "—"))}
-        ${kv("Lender", esc(l.lender || "—"))}
-        ${kv("Case / sale #", esc(l.caseNumber || "—"))}
-        ${kv("First seen", fmtDate(l.firstSeen))}
-        ${kv("Source", l.sourceUrl ? `<a href="${esc(l.sourceUrl)}" target="_blank" rel="noopener noreferrer">Public record ↗</a>` : "—")}
-      </div>
-      <div class="grid2">
-        <div><label>Est. value</label><input class="field" id="eVal" inputmode="decimal" value="${l.estValue ?? ""}" placeholder="$"></div>
-        <div><label>Amount owed</label><input class="field" id="eOwed" inputmode="decimal" value="${l.amountOwed ?? ""}" placeholder="$"></div>
-      </div>
-      <label>Notes</label><textarea class="field" id="eNotes">${esc(l.notes || "")}</textarea>
-      <div class="btns">
-        <button class="btn primary" id="save">Save changes</button>
-        <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr(l))}">🗺 Directions</a>
+        <span class="chip">${esc(county)} County</span></div>
+      <div class="btns" style="margin-top:4px">
+        <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr(l))}">🗺 Map & directions</a>
         <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.zillow.com/homes/${encodeURIComponent(fullAddr(l))}_rb/">Zillow ↗</a>
       </div>
+
+      <div class="sect">Owner</div>
+      <div class="owner">
+        <div class="nm">${esc(l.owner || "Owner not on file")}</div>
+        <div class="line">Mailing address: <b>${esc(l.ownerMailing || "Not on file")}</b></div>
+        ${abs === true ? `<span class="flag f-abs">Absentee owner: mail goes somewhere else</span>` : abs === false ? `<span class="flag f-occ">Owner gets mail at the property</span>` : ""}
+        ${l.lender ? `<div class="line">Lender: <b>${esc(l.lender)}</b></div>` : ""}
+        ${l.caseNumber ? `<div class="line">Case / sale #: <b>${esc(l.caseNumber)}</b></div>` : ""}
+        <div class="btns">
+          ${l.sourceUrl ? `<a class="btn" target="_blank" rel="noopener noreferrer" href="${esc(l.sourceUrl)}">📄 Public record</a>` : ""}
+          <a class="btn" target="_blank" rel="noopener noreferrer" href="${gSearch(county + " County Colorado Assessor property search")}">🏛 ${esc(county)} Assessor</a>
+          <a class="btn" target="_blank" rel="noopener noreferrer" href="${gSearch(county + " County Colorado Public Trustee foreclosure search")}">⚖️ Public Trustee</a>
+        </div>
+        <div class="line" style="font-size:12px;color:var(--muted)">From public records. Check the owner and mailing address on the Assessor site before sending a letter.</div>
+      </div>
+
+      <div class="sect">The numbers & how accurate they are</div>
+      <div class="nums">
+        <div class="num"><div class="row"><span class="lbl">${owedLbl}</span>${confPill(oc)}</div>
+          <div class="val">${money(l.amountOwed)}</div><div class="why">${oc[2]}</div></div>
+        <div class="num"><div class="row"><span class="lbl">Estimated value</span>${confPill(vc)}</div>
+          <div class="val">${money(l.estValue)}</div><div class="why">${vc[2]}</div></div>
+        <div class="num"><div class="row"><span class="lbl">Equity estimate</span>${confPill(ec)}</div>
+          <div class="val ${eq != null ? "eq " + (eq < 0 ? "neg" : "") : ""}">${money(eq)}</div><div class="why">${ec[2]}</div></div>
+        ${l.taxOwed != null ? `<div class="num"><div class="row"><span class="lbl">Back taxes</span>${confPill(["high","High"])}</div><div class="val">${money(l.taxOwed)}</div><div class="why">From the County Treasurer.</div></div>` : ""}
+        <div class="num"><div class="row"><span class="lbl">Key date</span></div>
+          <div class="val" style="font-size:16px">${fmtDate(l.keyDate)}</div>
+          <div class="why">${l.amountOwedSource === "original-loan" ? "Court response deadline. The actual sale date is usually weeks later. Confirm it with the Public Trustee." : "Sale date or deadline from the record."}</div></div>
+      </div>
+
+      <div class="sect">Pipeline</div>
+      <div class="seg" id="seg">${STATUSES.map(s => `<button data-s="${s}" class="${s === st ? "on" : ""}">${s === "Offer Made" ? "Offer" : s}</button>`).join("")}</div>
+
+      <div class="sect">Update the numbers</div>
+      <div class="grid2">
+        <div><label>Amount owed</label><input class="field" id="eOwed" inputmode="decimal" value="${l.amountOwed ?? ""}" placeholder="$">
+          ${sel("eOwedSrc", OWED_SRC, l.amountOwedSource, {"payoff":"Payoff statement","lender-bid":"Lender bid (PT)","tax-delinquency":"Back taxes","original-loan":"Original loan","manual":"My guess"})}</div>
+        <div><label>Est. value</label><input class="field" id="eVal" inputmode="decimal" value="${l.estValue ?? ""}" placeholder="$">
+          ${sel("eValSrc", VALUE_SRC, l.estValueSource, {"comps":"Comps / appraisal","assessor":"County Assessor","online":"Zillow / Redfin","manual":"My guess"})}</div>
+      </div>
+      <label>Notes</label><textarea class="field" id="eNotes">${esc(l.notes || "")}</textarea>
+      <div class="btns"><button class="btn primary" id="save">Save changes</button></div>
+
       <div class="sect">Reach out</div>
       <div class="btns" style="margin-top:0"><button class="btn" id="letter">✉️ Owner letter</button><button class="btn" id="script">🚪 Door script</button></div>
       <div id="out"></div>
@@ -431,7 +517,12 @@ function openLead(id){
   $("#seg").onclick = e => { const b = e.target.closest("[data-s]"); if (!b) return;
     $("#seg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); patch(l, {status: b.dataset.s}, "Moved to " + b.dataset.s); };
   $("#save").onclick = async () => {
-    await patch(l, {notes: $("#eNotes").value, estValue: $("#eVal").value, amountOwed: $("#eOwed").value});
+    const ch = {notes: $("#eNotes").value, estValue: $("#eVal").value, amountOwed: $("#eOwed").value,
+      amountOwedSource: $("#eOwedSrc").value, estValueSource: $("#eValSrc").value};
+    const num = v => v === "" ? null : Number(String(v).replace(/[$,\s]/g, ""));
+    if (num(ch.amountOwed) !== l.amountOwed && !ch.amountOwedSource) ch.amountOwedSource = "manual";
+    if (num(ch.estValue) !== l.estValue && !ch.estValueSource) ch.estValueSource = "manual";
+    await patch(l, ch);
     const fresh = await api("GET").catch(() => null); if (fresh) { leads = fresh.leads; render(); }
     toast("Saved"); closeModal();
   };

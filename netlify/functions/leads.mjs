@@ -13,7 +13,7 @@ const STATUSES = ["New", "Reviewed", "Contacted", "Offer Made", "Dead"];
 const FIELDS = [
   "amountOwed", "address", "city", "county", "zip", "leadType", "keyDate",
   "status", "estValue", "propertyType", "owner", "ownerMailing", "caseNumber",
-  "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen",
+  "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen", "amountOwedSource", "estValueSource",
 ];
 
 const json = (body, status = 200) =>
@@ -47,7 +47,18 @@ function clean(input) {
 
 async function load(store) {
   const existing = await store.get(KEY, { type: "json" });
-  if (existing) return existing;
+  if (existing) {
+    // One-time upgrade for leads saved before accuracy tracking existed.
+    const seedById = new Map(seedLeads.map((l) => [leadId(l), l]));
+    let changed = false;
+    for (const l of existing) {
+      const sd = seedById.get(l.id);
+      if (sd && !l.amountOwedSource && sd.amountOwedSource && l.amountOwed === sd.amountOwed) { l.amountOwedSource = sd.amountOwedSource; changed = true; }
+      if (typeof l.notes === "string" && l.notes.includes(" (719-545-0821)")) { l.notes = l.notes.replace(" (719-545-0821)", ""); changed = true; }
+    }
+    if (changed) await store.setJSON(KEY, existing);
+    return existing;
+  }
   // First run ever: load the starter leads so the app isn't empty.
   const today = new Date().toISOString().slice(0, 10);
   const seeded = seedLeads.map((l) => ({ saved: false, ...clean(l), id: leadId(l), updatedAt: today }));

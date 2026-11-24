@@ -3,8 +3,8 @@
 // amountOwed = ORIGINAL loan amount from the filing (current payoff is not stated). keyDate = court response deadline, not the sale date.
 // These filings are months old: verify each one with the Pueblo County Public Trustee — some may have sold, been continued, or been cured.
 const CJ = "https://www.coloradojudicial.gov/sites/default/files/";
-const NOTE = "Original loan amount from the court filing; current payoff not stated. Key date = court response deadline. VERIFY status with Pueblo County Public Trustee (719-545-0821) — may have sold, been continued, or cured.";
-const base = { county: "Pueblo", leadType: "Pre-foreclosure", status: "New", notes: NOTE, firstSeen: "2026-11-24" };
+const NOTE = "Original loan amount from the court filing; current payoff not stated. Key date = court response deadline. VERIFY status with Pueblo County Public Trustee — may have sold, been continued, or cured.";
+const base = { amountOwedSource: "original-loan", county: "Pueblo", leadType: "Pre-foreclosure", status: "New", notes: NOTE, firstSeen: "2026-11-24" };
 
 export default [
   { ...base, address: "2105 Chatalet Ln Unit D", city: "Pueblo", zip: "81005", amountOwed: 73400, propertyType: "Condo/Townhome", keyDate: "2026-03-18", owner: "Brian K. Akerson", lender: "Security Service Federal Credit Union (subordinate lien)", caseNumber: "2026CV30160", sourceUrl: CJ + "2026-02/2026CV30160%20SECURITY%20SERVICE%20FEDERAL%20CREDIT%20UNION%20vs.%20AKERSON,%20BRIAN%20K%202105%20Chatalet%20Ln%20Unit%20D%20Pueblo%20CO%2081005%203-18.pdf", notes: NOTE + " This is a second (subordinate) lien — a first mortgage may also exist." },
