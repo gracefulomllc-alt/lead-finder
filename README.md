@@ -2,6 +2,8 @@
 
 A private web app that lists distressed properties (pre-foreclosures and tax-delinquent properties) in Arvada (Jefferson Co.), Loveland (Larimer Co.), Pueblo (Pueblo Co.) and Colorado Springs (El Paso Co.). It sorts them by **amount owed, cheapest first**.
 
+**Layout (Zillow-style):** **New** tab = scroll-through feed of unreviewed leads with one-tap Pass / Save / Contacted · **Search** tab = map with price-tag pins + listing cards (split screen on desktop, Map/List toggle on phone) · **Pipeline** board · **Add**.
+
 **Features:** filters by city, lead type, property type and status · Pipeline board (New → Reviewed → Contacted → Offer Made → Dead) · Map with color-coded pins · Owner letter and door-script generator · Import (JSON or CSV) · CSV export · Notes on each lead.
 
 ## Deploy (GitHub → Netlify)
@@ -9,9 +11,10 @@ A private web app that lists distressed properties (pre-foreclosures and tax-del
 1. Create a new GitHub repo (for example `lead-finder`, **private**) and upload everything in this folder.
 2. In Netlify, go to **Add new site → Import from Git**, pick the repo, and leave the build settings alone. `netlify.toml` already handles them.
 3. In Netlify, go to **Site configuration → Environment variables** and add `ACCESS_KEY` set to a long random password. This one key locks both the app and the API.
-4. Redeploy. Open the site, tap 🔑, and enter your key. The key is saved on that device.
+4. *(Optional, for house photos)* Add `GOOGLE_MAPS_KEY` — a Google Maps API key with **Street View Static API** enabled. In Google Cloud, restrict it to HTTP referrer `https://YOUR-SITE.netlify.app/*`. Without it, cards show a clean placeholder.
+5. Redeploy. Open the site, tap 🔑, and enter your key. The key is saved on that device.
 
-Leads are stored in Netlify Blobs (built in, free tier). No database setup is needed.
+Leads are stored in Netlify Blobs (built in, free tier). No database setup is needed. On the very first load, the app fills itself with starter leads from `netlify/lib/seed-leads.mjs` (Pueblo-area foreclosure filings posted by the Colorado Judicial Branch). Their amounts are **original loan amounts**, and the filings are months old, so verify each one with the Public Trustee before acting.
 
 ## API (for your agent app or a scanner)
 

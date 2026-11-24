@@ -4,335 +4,467 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
-<meta name="theme-color" content="#0f172a">
-<title>Lead Finder – Distressed Properties</title>
+<meta name="theme-color" content="#ffffff">
+<title>Lead Finder</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
-:root{--bg:#0f172a;--panel:#111c33;--card:#16233f;--line:#243557;--text:#e8eefc;--muted:#93a3c4;--accent:#f59e0b;--accent2:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--radius:14px}
+:root{
+  --blue:#006aff;--blue-d:#0050c2;--ink:#2a2a33;--ink2:#54545a;--muted:#767680;--line:#e3e3e8;--bg:#f6f6f8;--card:#fff;
+  --red:#d8232a;--orange:#e56a00;--purple:#7a3ff2;--green:#0a8a3a;--r:12px;--nav:62px
+}
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{position:sticky;top:0;z-index:20;background:rgba(15,23,42,.96);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px 14px calc(8px)}
-.top{display:flex;align-items:center;gap:10px}
-.brand{font-weight:800;font-size:18px;letter-spacing:.2px}
-.brand span{color:var(--accent)}
-.spacer{flex:1}
-button,select,input,textarea{font:inherit;color:var(--text)}
-.btn{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer}
-.btn.primary{background:var(--accent);border-color:var(--accent);color:#1b1300;font-weight:700}
-.btn.small{padding:5px 9px;font-size:13px}
-.tabs{display:flex;gap:6px;margin-top:10px}
-.tab{flex:1;text-align:center;padding:8px;border-radius:10px;background:var(--panel);border:1px solid var(--line);cursor:pointer;font-weight:600}
-.tab.on{background:var(--accent);color:#1b1300;border-color:var(--accent)}
-.filters{display:flex;gap:6px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 "Open Sans",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--blue)}
+/* ---------- top bar ---------- */
+.top{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid var(--line)}
+.bar{display:flex;align-items:center;gap:10px;padding:10px 14px;max-width:1400px;margin:0 auto}
+.logo{display:flex;align-items:center;gap:6px;font-weight:800;font-size:19px;color:var(--blue);white-space:nowrap}
+.logo svg{width:26px;height:26px}
+.search{flex:1;display:flex;align-items:center;gap:8px;border:1px solid #c4c4cc;border-radius:8px;padding:0 10px;height:42px;background:#fff;min-width:0}
+.search:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px #006aff22}
+.search input{border:0;outline:0;flex:1;min-width:0;height:40px;font-size:15px}
+.icon-btn{border:0;background:transparent;cursor:pointer;padding:6px;border-radius:8px;color:var(--ink2);font-size:18px}
+.icon-btn:hover{background:#f0f0f4}
+.filters{display:flex;gap:8px;overflow-x:auto;padding:0 14px 10px;max-width:1400px;margin:0 auto;scrollbar-width:none}
 .filters::-webkit-scrollbar{display:none}
-.chip{white-space:nowrap;padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:13px}
-.chip.on{background:#fff2;border-color:var(--accent);color:var(--accent)}
-.row2{display:flex;gap:6px;margin-top:6px}
-.row2 select,.row2 input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 9px}
-main{padding:12px 14px 90px;max-width:1100px;margin:0 auto}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
-.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px}
-.stat b{display:block;font-size:20px}
-.stat small{color:var(--muted)}
-.list{display:grid;gap:10px}
-@media(min-width:760px){.list{grid-template-columns:1fr 1fr}}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px;cursor:pointer}
-.card:active{transform:scale(.99)}
-.card .amt{font-size:22px;font-weight:800;color:var(--accent)}
-.card .addr{font-weight:600;margin-top:2px}
-.meta{color:var(--muted);font-size:13px;margin-top:4px;display:flex;flex-wrap:wrap;gap:6px 10px}
-.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700}
-.p-pre{background:#ef444433;color:#fca5a5}.p-tax{background:#f59e0b33;color:#fcd34d}.p-both{background:#a855f733;color:#d8b4fe}
-.s-New{background:#3b82f633;color:#93c5fd}.s-Reviewed{background:#64748b44;color:#cbd5e1}.s-Contacted{background:#eab30833;color:#fde68a}.s-Offer{background:#22c55e33;color:#86efac}.s-Dead{background:#33415588;color:#94a3b8}
-.eq{color:var(--accent2);font-weight:700}
-.eq.neg{color:var(--red)}
-.empty{text-align:center;color:var(--muted);padding:40px 10px}
-#map{height:calc(100vh - 250px);min-height:380px;border-radius:var(--radius);border:1px solid var(--line)}
-.board{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px}
-.col{min-width:240px;flex:1;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:8px}
-.col h3{margin:4px 4px 8px;font-size:14px;display:flex;justify-content:space-between}
-.col .card{margin-bottom:8px;padding:10px}
-.col .card .amt{font-size:17px}
-.modal{position:fixed;inset:0;background:#000a;z-index:50;display:none;align-items:flex-end;justify-content:center}
+.fbtn{flex:none;border:1px solid #c4c4cc;background:#fff;border-radius:8px;padding:0 10px;height:36px;font-weight:600;font-size:14px;color:var(--ink);cursor:pointer;appearance:none;-webkit-appearance:none;padding-right:26px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2354545a'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 9px center}
+.fbtn.on{border-color:var(--blue);color:var(--blue);background-color:#eef5ff}
+/* ---------- layout ---------- */
+main{max-width:1400px;margin:0 auto;padding:0 0 calc(var(--nav) + 20px)}
+.view{display:none}.view.on{display:block}
+.head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:14px 14px 6px}
+.head h1{font-size:20px;margin:0;font-weight:700}
+.head .sub{color:var(--muted);font-size:13px}
+.grid{display:grid;gap:14px;padding:6px 14px}
+@media(min-width:700px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1100px){.grid.feed{grid-template-columns:repeat(3,1fr)}}
+/* search split */
+.split{display:block}
+#map{height:calc(100vh - 175px - var(--nav));min-height:360px;display:none}
+.split.mapmode #map{display:block}
+.split.mapmode .listpane{display:none}
+@media(min-width:1000px){
+  .split{display:grid;grid-template-columns:1fr 1fr;height:calc(100vh - 112px)}
+  #map{display:block!important;height:100%}
+  .listpane{display:block!important;overflow:auto;height:100%}
+  .split .grid{grid-template-columns:1fr 1fr}
+  .maptoggle{display:none!important}
+}
+.maptoggle{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav) + 14px);z-index:35;background:var(--ink);color:#fff;border:0;border-radius:999px;padding:10px 18px;font-weight:700;box-shadow:0 4px 14px #0004;cursor:pointer}
+/* ---------- card ---------- */
+.card{background:var(--card);border-radius:var(--r);overflow:hidden;box-shadow:0 1px 3px #0000001f,0 1px 2px #00000014;cursor:pointer;transition:box-shadow .15s}
+.card:hover{box-shadow:0 4px 14px #00000026}
+.photo{position:relative;aspect-ratio:16/10;background:#dfe6ef;overflow:hidden}
+.photo img{width:100%;height:100%;object-fit:cover;display:block}
+.ph{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:#5b6b80;background:linear-gradient(135deg,#e6edf6,#d3deeb);font-size:13px;font-weight:600}
+.ph svg{width:44px;height:44px;opacity:.7}
+.tag{position:absolute;top:10px;left:10px;background:#fff;color:var(--ink);font-size:12px;font-weight:700;padding:3px 8px;border-radius:4px;display:flex;align-items:center;gap:5px;box-shadow:0 1px 3px #0003}
+.tag i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.newtag{position:absolute;top:10px;left:auto;right:52px;background:var(--blue);color:#fff;font-size:11px;font-weight:800;padding:3px 7px;border-radius:4px;letter-spacing:.3px}
+.heart{position:absolute;top:6px;right:6px;width:38px;height:38px;border-radius:50%;border:0;background:#0000;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.heart svg{width:28px;height:28px;filter:drop-shadow(0 1px 2px #0008)}
+.body{padding:10px 12px 12px}
+.price{font-size:24px;font-weight:800;letter-spacing:-.3px;line-height:1.15}
+.price small{font-size:13px;font-weight:600;color:var(--muted);margin-left:4px;letter-spacing:0}
+.facts{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:14px;color:var(--ink);margin-top:3px}
+.facts b{font-weight:700}
+.facts .sep{color:#c4c4cc}
+.addr{font-size:14px;color:var(--ink2);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.meta{font-size:12px;color:var(--muted);margin-top:6px;display:flex;justify-content:space-between;gap:8px}
+.eq{color:var(--green);font-weight:700}.eq.neg{color:var(--red)}
+.status{font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px;background:#eef0f4;color:var(--ink2);text-transform:uppercase;letter-spacing:.3px}
+.st-New{background:#eef5ff;color:var(--blue)}.st-Contacted{background:#fff4e5;color:#a35100}.st-Offer{background:#e7f6ec;color:var(--green)}.st-Dead{background:#f1f1f3;color:#9a9aa3}
+.triage{display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid var(--line)}
+.triage button{border:0;background:#fff;padding:11px 4px;font-weight:700;font-size:13px;cursor:pointer;color:var(--ink2)}
+.triage button+button{border-left:1px solid var(--line)}
+.triage button:hover{background:#f6f8fb}
+.triage .t-save{color:var(--blue)}.triage .t-pass{color:#9a9aa3}.triage .t-con{color:#a35100}
+.empty{text-align:center;color:var(--muted);padding:50px 20px}
+@media(max-width:520px){.hide-sm{display:none}}
+.empty b{display:block;color:var(--ink);font-size:17px;margin-bottom:6px}
+/* pipeline */
+.board{display:flex;gap:12px;overflow-x:auto;padding:6px 14px 14px}
+.col{min-width:270px;flex:1;background:#eceef2;border-radius:var(--r);padding:10px}
+.col h3{margin:2px 4px 10px;font-size:14px;display:flex;justify-content:space-between}
+.col .card{margin-bottom:10px}
+.col .photo{aspect-ratio:16/8}
+.col .price{font-size:19px}
+/* bottom nav */
+.nav{position:fixed;left:0;right:0;bottom:0;height:var(--nav);background:#fff;border-top:1px solid var(--line);display:flex;z-index:45;padding-bottom:env(safe-area-inset-bottom)}
+.nav button{flex:1;border:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;font-weight:700;color:var(--muted);cursor:pointer;position:relative}
+.nav button svg{width:24px;height:24px}
+.nav button.on{color:var(--blue)}
+.badge{position:absolute;top:6px;left:calc(50% + 6px);background:var(--red);color:#fff;font-size:10px;font-weight:800;border-radius:999px;padding:1px 6px}
+/* detail */
+.modal{position:fixed;inset:0;z-index:60;background:#0008;display:none;align-items:flex-end;justify-content:center}
 .modal.open{display:flex}
-.sheet{background:var(--panel);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px;border:1px solid var(--line)}
-@media(min-width:760px){.modal{align-items:center}.sheet{border-radius:18px}}
-.sheet h2{margin:0 0 4px;font-size:19px}
-.kv{display:grid;grid-template-columns:130px 1fr;gap:6px 10px;margin:12px 0;font-size:14px}
-.kv div:nth-child(odd){color:var(--muted)}
-label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
-.field{width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px}
+.sheet{background:#fff;width:100%;max-width:760px;max-height:94vh;overflow:auto;border-radius:16px 16px 0 0}
+@media(min-width:760px){.modal{align-items:center}.sheet{border-radius:16px}}
+.sheet .photo{aspect-ratio:16/8}
+.close{position:absolute;top:10px;left:10px;width:36px;height:36px;border-radius:50%;border:0;background:#fff;box-shadow:0 1px 4px #0005;font-size:18px;cursor:pointer;z-index:2}
+.pad{padding:14px 16px 18px}
+.dprice{font-size:30px;font-weight:800;letter-spacing:-.5px}
+.daddr{font-size:16px;color:var(--ink);margin-top:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
+.chip{font-size:12px;font-weight:700;padding:4px 9px;border-radius:999px;background:#f1f3f7;color:var(--ink2)}
+.kv{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:12px 0}
+.kv div{background:#fff;padding:10px 12px}
+.kv>div>span{display:block;font-size:12px;color:var(--muted)}
+.kv b{font-size:14px;word-break:break-word}
+.sect{font-size:16px;font-weight:700;margin:18px 0 8px}
+label{display:block;font-size:13px;color:var(--ink2);font-weight:600;margin:10px 0 4px}
+.field{width:100%;border:1px solid #c4c4cc;border-radius:8px;padding:10px;background:#fff}
+.field:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px #006aff22}
 textarea.field{min-height:90px;resize:vertical}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.letter{white-space:pre-wrap;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:14px;margin-top:8px}
-.warn{background:#f59e0b1a;border:1px solid #f59e0b55;border-radius:10px;padding:10px;font-size:13px;margin-top:10px}
+.btn{border:1px solid #c4c4cc;background:#fff;border-radius:8px;padding:10px 14px;font-weight:700;cursor:pointer;text-decoration:none;color:var(--ink);display:inline-flex;align-items:center;gap:6px;font-size:14px}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.btn.primary:hover{background:var(--blue-d)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.seg{display:flex;border:1px solid #c4c4cc;border-radius:8px;overflow:hidden}
+.seg button{flex:1;border:0;background:#fff;padding:9px 4px;font-size:13px;font-weight:700;cursor:pointer;color:var(--ink2)}
+.seg button+button{border-left:1px solid #c4c4cc}
+.seg button.on{background:var(--blue);color:#fff}
+.letter{white-space:pre-wrap;border:1px solid var(--line);border-radius:10px;padding:14px;font-size:14px;background:#fafbfc;margin-top:10px;outline:0}
+.warn{background:#fff8e6;border:1px solid #f3d27a;border-radius:10px;padding:10px 12px;font-size:13px;margin-top:10px;color:#5a4300}
+.toast{position:fixed;left:50%;bottom:calc(var(--nav) + 16px);transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 14px;border-radius:10px;z-index:70;display:none;align-items:center;gap:12px;font-size:14px;box-shadow:0 4px 14px #0005}
+.toast button{border:0;background:none;color:#8cc4ff;font-weight:800;cursor:pointer}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#000d;padding:10px 16px;border-radius:10px;z-index:60;display:none}
-a{color:#93c5fd}
-.fab{position:fixed;right:16px;bottom:18px;z-index:30;border-radius:999px;padding:13px 18px;box-shadow:0 6px 20px #0008}
+/* map pins */
+.pin{background:var(--blue);color:#fff;font-weight:800;font-size:12px;padding:3px 7px;border-radius:6px;border:2px solid #fff;box-shadow:0 1px 4px #0006;white-space:nowrap;transform:translate(-50%,-100%);display:inline-block}
+.pin.pre{background:var(--red)}.pin.tax{background:var(--orange)}.pin.both{background:var(--purple)}
+.leaflet-div-icon{background:none;border:0}
 </style>
 </head>
 <body>
-<header>
-  <div class="top">
-    <div class="brand">Lead<span>Finder</span></div>
-    <div class="spacer"></div>
-    <button class="btn small" id="importBtn">Import</button>
-    <button class="btn small" id="exportBtn">CSV</button>
-    <button class="btn small" id="keyBtn" title="Access key">🔑</button>
+
+<div class="top">
+  <div class="bar">
+    <div class="logo"><svg viewBox="0 0 24 24" fill="none"><path d="M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="#006aff"/></svg><span class="hide-sm">Lead Finder</span></div>
+    <label class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#767680" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Address, city, ZIP, owner, case #" autocomplete="off"></label>
+    <button class="icon-btn" id="menuBtn" title="More">⋯</button>
   </div>
-  <div class="tabs">
-    <div class="tab on" data-view="list">List</div>
-    <div class="tab" data-view="map">Map</div>
-    <div class="tab" data-view="board">Pipeline</div>
+  <div class="filters">
+    <select class="fbtn" id="fCity"><option value="">All cities</option><option>Arvada</option><option>Loveland</option><option>Pueblo</option><option>Colorado Springs</option></select>
+    <select class="fbtn" id="fType"><option value="">Lead type</option><option>Pre-foreclosure</option><option>Tax-delinquent</option><option>Both</option></select>
+    <select class="fbtn" id="fMax"><option value="">Max owed</option><option value="100000">Under $100K</option><option value="150000">Under $150K</option><option value="200000">Under $200K</option><option value="300000">Under $300K</option><option value="400000">Under $400K</option></select>
+    <select class="fbtn" id="fProp"><option value="">Home type</option><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select>
+    <select class="fbtn" id="fStatus"><option value="active">Status: Active</option><option value="">Status: All</option><option>New</option><option>Reviewed</option><option>Contacted</option><option>Offer Made</option><option value="saved">Saved ♥</option><option>Dead</option></select>
+    <select class="fbtn" id="fSort"><option value="owedAsc">Sort: Cheapest owed</option><option value="owedDesc">Sort: Most owed</option><option value="equityDesc">Sort: Most equity</option><option value="dateAsc">Sort: Key date</option><option value="newest">Sort: Newest</option></select>
   </div>
-  <div class="filters" id="cityChips"></div>
-  <div class="row2">
-    <select id="fType"><option value="">All lead types</option><option>Pre-foreclosure</option><option>Tax-delinquent</option><option>Both</option></select>
-    <select id="fProp"><option value="">All property types</option><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select>
-  </div>
-  <div class="row2">
-    <select id="fStatus"><option value="active">Hide Dead</option><option value="">All statuses</option><option>New</option><option>Reviewed</option><option>Contacted</option><option>Offer Made</option><option>Dead</option></select>
-    <select id="fSort"><option value="owedAsc">Cheapest to get into</option><option value="owedDesc">Most owed first</option><option value="equityDesc">Biggest equity gap</option><option value="dateAsc">Soonest sale date</option><option value="newest">Newest found</option></select>
-  </div>
-  <div class="row2"><input id="fSearch" placeholder="Search address, owner, case #"></div>
-</header>
+</div>
 
 <main>
-  <section id="view-list">
-    <div class="stats" id="stats"></div>
-    <div class="list" id="list"></div>
+  <!-- NEW FEED -->
+  <section class="view on" id="v-new">
+    <div class="head"><h1 id="newTitle">New leads</h1><span class="sub">Save, pass, or mark contacted to clear them</span></div>
+    <div class="grid feed" id="newGrid"></div>
   </section>
-  <section id="view-map" hidden>
-    <div class="actions" style="margin:0 0 8px"><button class="btn small" id="geoBtn">📍 Locate missing pins</button><span id="geoMsg" style="color:var(--muted);font-size:13px;align-self:center"></span></div>
-    <div id="map"></div>
+
+  <!-- SEARCH (map + list) -->
+  <section class="view" id="v-search">
+    <div class="split" id="split">
+      <div id="map"></div>
+      <div class="listpane">
+        <div class="head"><h1>Distressed homes</h1><span class="sub" id="searchCount"></span></div>
+        <div class="grid" id="searchGrid"></div>
+      </div>
+    </div>
+    <button class="maptoggle" id="mapToggle">🗺 Map</button>
   </section>
-  <section id="view-board" hidden>
+
+  <!-- PIPELINE -->
+  <section class="view" id="v-pipe">
+    <div class="head"><h1>Pipeline</h1><span class="sub">Tap a lead to change its stage</span></div>
     <div class="board" id="board"></div>
   </section>
 </main>
 
-<button class="btn primary fab" id="addBtn">＋ Lead</button>
+<nav class="nav">
+  <button data-v="new" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>New<span class="badge" id="newBadge" hidden></span></button>
+  <button data-v="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</button>
+  <button data-v="pipe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg>Pipeline</button>
+  <button id="navAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+</nav>
 
 <div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast"><span id="toastMsg"></span><button id="toastUndo" hidden>UNDO</button></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const CITIES = [
-  {city:"Arvada", county:"Jefferson"},
-  {city:"Loveland", county:"Larimer"},
-  {city:"Pueblo", county:"Pueblo"},
-  {city:"Colorado Springs", county:"El Paso"},
-];
+const CITY_COUNTY = {"Arvada":"Jefferson","Loveland":"Larimer","Pueblo":"Pueblo","Colorado Springs":"El Paso"};
 const STATUSES = ["New","Reviewed","Contacted","Offer Made","Dead"];
-const API = "/api/leads";
-let leads = [], view = "list", cityFilter = "", map, markers;
+let leads = [], view = "new", svKey = "", map, pinLayer, mapMode = false;
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = n => (n == null || n === "" || isNaN(n)) ? "—" : "$" + Math.round(n).toLocaleString();
+const short = n => n == null ? "?" : n >= 1e6 ? "$" + (n/1e6).toFixed(1) + "M" : "$" + Math.round(n/1000) + "K";
+const fmtDate = d => { if (!d) return "—"; const t = new Date(String(d).length === 10 ? d + "T12:00:00" : d); return isNaN(t) ? esc(d) : t.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); };
+const equity = l => (l.estValue != null && l.amountOwed != null) ? l.estValue - l.amountOwed : null;
+const typeColor = t => t === "Tax-delinquent" ? "var(--orange)" : t === "Both" ? "var(--purple)" : "var(--red)";
+const typeCls = t => t === "Tax-delinquent" ? "tax" : t === "Both" ? "both" : "pre";
+const fullAddr = l => `${l.address.replace(/\s*\(.*?\)\s*/g," ")}, ${l.city || ""}, CO ${l.zip || ""}`.trim();
 
-const $ = (s) => document.querySelector(s);
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const money = (n) => (n === null || n === undefined || n === "" || isNaN(n)) ? "—" : "$" + Math.round(n).toLocaleString();
-const fmtDate = (d) => { if(!d) return "—"; const t = new Date(d + (String(d).length===10?"T12:00:00":"")); return isNaN(t) ? esc(d) : t.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); };
-const equity = (l) => (l.estValue != null && l.amountOwed != null) ? l.estValue - l.amountOwed : null;
-const typeClass = (t) => t === "Pre-foreclosure" ? "p-pre" : t === "Tax-delinquent" ? "p-tax" : "p-both";
-const statusClass = (s) => "s-" + String(s||"New").split(" ")[0];
-function toast(m){ const t=$("#toast"); t.textContent=m; t.style.display="block"; clearTimeout(toast.t); toast.t=setTimeout(()=>t.style.display="none",2600); }
-
-function getKey(){ try { return localStorage.getItem("lf_key") || ""; } catch { return ""; } }
-function setKey(k){ try { localStorage.setItem("lf_key", k); } catch {} }
-async function api(method, body, id){
-  const res = await fetch(API + (id ? "?id=" + encodeURIComponent(id) : ""), {
-    method, headers: {"content-type":"application/json","x-access-key": getKey()},
-    body: body ? JSON.stringify(body) : undefined });
-  if (res.status === 401) { askKey(true); throw new Error("unauthorized"); }
-  const data = await res.json().catch(()=>({}));
-  if (!res.ok) throw new Error(data.error || res.statusText);
-  return data;
+/* ---------- storage + API ---------- */
+const getKey = () => { try { return localStorage.getItem("lf_key") || ""; } catch { return ""; } };
+const setKey = k => { try { localStorage.setItem("lf_key", k); } catch {} };
+async function api(method, body, id, path = "/api/leads"){
+  const r = await fetch(path + (id ? "?id=" + encodeURIComponent(id) : ""), { method,
+    headers: {"content-type":"application/json","x-access-key":getKey()}, body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) { askKey(true); throw new Error("unauthorized"); }
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || r.statusText);
+  return d;
 }
-function askKey(bad){
-  openModal(`<h2>Access key</h2><p style="color:var(--muted)">${bad?"That key didn't work. ":""}Enter the ACCESS_KEY you set in Netlify. It's saved on this device only.</p>
-  <input class="field" id="keyIn" type="password" value="${esc(getKey())}" autocomplete="off">
-  <div class="actions"><button class="btn primary" id="keySave">Save</button></div>`);
-  $("#keySave").onclick = () => { setKey($("#keyIn").value.trim()); closeModal(); load(); };
-}
-
 async function load(){
-  if (!getKey()) return askKey();
-  try { leads = (await api("GET")).leads || []; render(); }
-  catch(e){ if (e.message !== "unauthorized") toast("Load failed: " + e.message); }
+  if (!getKey()) return askKey(false);
+  try {
+    const [d, cfg] = await Promise.all([api("GET"), api("GET", null, null, "/api/config").catch(() => ({}))]);
+    leads = d.leads || []; svKey = cfg.streetViewKey || "";
+    render(); geocodeQueue();
+  } catch (e) { if (e.message !== "unauthorized") toast("Couldn't load leads: " + e.message); }
+}
+async function patch(l, changes, msg){
+  const before = {}; for (const k in changes) before[k] = l[k];
+  Object.assign(l, changes); render();
+  try { await api("PATCH", changes, l.id); } catch (e) { Object.assign(l, before); render(); return toast("Save failed: " + e.message); }
+  if (msg) toast(msg, async () => { Object.assign(l, before); render(); try { await api("PATCH", before, l.id); } catch {} });
 }
 
-function filtered(){
-  const t=$("#fType").value, p=$("#fProp").value, s=$("#fStatus").value, q=$("#fSearch").value.toLowerCase().trim();
-  let out = leads.filter(l =>
-    (!cityFilter || l.city === cityFilter) &&
-    (!t || l.leadType === t) && (!p || l.propertyType === p) &&
-    (s === "" ? true : s === "active" ? l.status !== "Dead" : l.status === s) &&
-    (!q || [l.address,l.owner,l.caseNumber,l.city,l.notes].join(" ").toLowerCase().includes(q)));
-  const big = Number.MAX_SAFE_INTEGER, sort = $("#fSort").value;
-  const by = {
+/* ---------- toast ---------- */
+let toastT;
+function toast(msg, undo){
+  $("#toastMsg").textContent = msg; const u = $("#toastUndo");
+  u.hidden = !undo; u.onclick = () => { $("#toast").style.display = "none"; undo && undo(); };
+  $("#toast").style.display = "flex"; clearTimeout(toastT); toastT = setTimeout(() => $("#toast").style.display = "none", undo ? 5000 : 2600);
+}
+
+/* ---------- photos ---------- */
+const houseSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>`;
+function photoHTML(l){
+  const street = esc(l.address.replace(/^\d+\s*/,"").replace(/\s*\(.*?\)/,""));
+  const ph = `<div class="ph">${houseSVG}<span>${street}</span></div>`;
+  if (!svKey) return ph;
+  const src = `https://maps.googleapis.com/maps/api/streetview?size=640x400&fov=80&return_error_code=true&location=${encodeURIComponent(fullAddr(l))}&key=${encodeURIComponent(svKey)}`;
+  return ph + `<img loading="lazy" alt="" src="${src}" onerror="this.remove()">`;
+}
+const heartSVG = on => `<svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2.1 0 3.6 1.2 4.4 2.6h1.6c.8-1.4 2.3-2.6 4.4-2.6 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z" fill="${on ? "#d8232a" : "#0006"}" stroke="#fff" stroke-width="1.6"/></svg>`;
+
+/* ---------- filtering ---------- */
+function filtered(opts = {}){
+  const q = $("#q").value.toLowerCase().trim(), city = $("#fCity").value, t = $("#fType").value,
+    max = +$("#fMax").value || 0, p = $("#fProp").value, s = opts.status ?? $("#fStatus").value, sort = $("#fSort").value;
+  const big = Number.MAX_SAFE_INTEGER;
+  return leads.filter(l =>
+    (!city || l.city === city) && (!t || l.leadType === t) && (!p || l.propertyType === p) &&
+    (!max || (l.amountOwed != null && l.amountOwed <= max)) &&
+    (s === "" ? true : s === "active" ? l.status !== "Dead" : s === "saved" ? l.saved : l.status === s) &&
+    (!q || [l.address,l.city,l.zip,l.owner,l.caseNumber,l.lender,l.notes].join(" ").toLowerCase().includes(q))
+  ).sort({
     owedAsc:(a,b)=>(a.amountOwed??big)-(b.amountOwed??big),
     owedDesc:(a,b)=>(b.amountOwed??-1)-(a.amountOwed??-1),
     equityDesc:(a,b)=>(equity(b)??-big)-(equity(a)??-big),
     dateAsc:(a,b)=>String(a.keyDate||"9999").localeCompare(String(b.keyDate||"9999")),
     newest:(a,b)=>String(b.firstSeen||"").localeCompare(String(a.firstSeen||"")),
-  }[sort];
-  return out.sort(by);
+  }[sort]);
 }
 
-function cardHTML(l, compact){
+/* ---------- cards ---------- */
+function cardHTML(l, mode){
   const eq = equity(l);
-  return `<div class="card" data-id="${esc(l.id)}">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-      <div><div class="amt">${money(l.amountOwed)}</div><div class="addr">${esc(l.address)}</div></div>
-      <span class="pill ${statusClass(l.status)}">${esc(l.status||"New")}</span>
+  const st = (l.status || "New");
+  const facts = [
+    l.estValue != null ? `<span><b>${short(l.estValue)}</b> value</span>` : "",
+    eq != null ? `<span class="eq ${eq < 0 ? "neg" : ""}">${eq < 0 ? "−" : ""}${short(Math.abs(eq))} equity</span>` : "",
+  ].filter(Boolean).join('<span class="sep">|</span>');
+  return `<article class="card" data-id="${esc(l.id)}">
+    <div class="photo">${photoHTML(l)}
+      <span class="tag"><i style="background:${typeColor(l.leadType)}"></i>${esc(l.leadType || "Lead")}</span>
+      ${st === "New" && mode !== "feed" ? `<span class="newtag">NEW</span>` : ""}
+      <button class="heart" data-heart="${esc(l.id)}" aria-label="Save">${heartSVG(l.saved)}</button>
     </div>
-    <div class="meta"><span>${esc(l.city||"")}${l.county?" · "+esc(l.county)+" Co.":""}</span>
-      ${l.leadType?`<span class="pill ${typeClass(l.leadType)}">${esc(l.leadType)}</span>`:""}
-      ${compact?"":`<span>${esc(l.propertyType||"")}</span>`}</div>
-    ${compact?"":`<div class="meta"><span>Key date: ${fmtDate(l.keyDate)}</span><span>Value: ${money(l.estValue)}</span>
-      <span>Equity: <span class="eq ${eq<0?"neg":""}">${money(eq)}</span></span></div>`}
-  </div>`;
+    <div class="body">
+      <div class="price">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"}<small>owed</small></div>
+      ${facts ? `<div class="facts">${facts}</div>` : ""}
+      <div class="addr">${esc(fullAddr(l))}</div>
+      <div class="meta"><span>${[l.propertyType ? esc(l.propertyType) : "", l.keyDate ? "Key date " + fmtDate(l.keyDate) : esc(CITY_COUNTY[l.city] || l.county || "") + " County"].filter(Boolean).join(" · ")}</span>
+        <span class="status st-${st.split(" ")[0]}">${esc(st)}</span></div>
+    </div>
+    ${mode === "feed" ? `<div class="triage">
+      <button class="t-pass" data-act="pass">✕ Pass</button>
+      <button class="t-save" data-act="save">♥ Save</button>
+      <button class="t-con" data-act="contacted">✆ Contacted</button></div>` : ""}
+  </article>`;
 }
-
-function render(){
-  // city chips
-  $("#cityChips").innerHTML = [`<span class="chip ${!cityFilter?"on":""}" data-city="">All (${leads.length})</span>`]
-    .concat(CITIES.map(c => `<span class="chip ${cityFilter===c.city?"on":""}" data-city="${c.city}">${c.city} (${leads.filter(l=>l.city===c.city).length})</span>`)).join("");
-  document.querySelectorAll("#cityChips .chip").forEach(ch => ch.onclick = () => { cityFilter = ch.dataset.city; render(); });
-
-  const rows = filtered();
-  const owed = rows.filter(r=>r.amountOwed!=null).map(r=>r.amountOwed);
-  $("#stats").innerHTML = `
-    <div class="stat"><b>${rows.length}</b><small>leads shown</small></div>
-    <div class="stat"><b>${owed.length?money(Math.min(...owed)):"—"}</b><small>lowest owed</small></div>
-    <div class="stat"><b>${rows.filter(r=>r.status==="New").length}</b><small>new</small></div>`;
-  $("#list").innerHTML = rows.length ? rows.map(l=>cardHTML(l)).join("") :
-    `<div class="empty">No leads yet.<br>Tap <b>Import</b> to paste scan results, or <b>＋ Lead</b> to add one.</div>`;
-
-  $("#board").innerHTML = STATUSES.map(s => {
-    const items = rows.filter(r => (r.status||"New") === s);
-    return `<div class="col"><h3><span>${s}</span><span style="color:var(--muted)">${items.length}</span></h3>${items.map(l=>cardHTML(l,true)).join("")}</div>`;
-  }).join("");
-
-  document.querySelectorAll(".card").forEach(c => c.onclick = () => openLead(c.dataset.id));
-  if (view === "map") drawMap(rows);
-}
-
-function drawMap(rows){
-  if (!map){
-    map = L.map("map").setView([39.3,-104.9], 7);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
-    markers = L.layerGroup().addTo(map);
-  }
-  setTimeout(()=>map.invalidateSize(),50);
-  markers.clearLayers();
-  const pts = [];
-  rows.filter(l=>l.lat!=null&&l.lng!=null).forEach(l => {
-    const color = l.leadType==="Pre-foreclosure"?"#ef4444":l.leadType==="Tax-delinquent"?"#f59e0b":"#a855f7";
-    const m = L.circleMarker([l.lat,l.lng],{radius:9,color:"#fff",weight:2,fillColor:color,fillOpacity:.95})
-      .bindPopup(`<b>${money(l.amountOwed)}</b><br>${esc(l.address)}<br>${esc(l.city||"")}<br><a href="#" data-open="${esc(l.id)}">Open lead</a>`);
-    m.on("popupopen", e => { const a = e.popup.getElement().querySelector("[data-open]"); if(a) a.onclick = (ev)=>{ev.preventDefault();openLead(a.dataset.open);}; });
-    markers.addLayer(m); pts.push([l.lat,l.lng]);
+function bindCards(root){
+  root.querySelectorAll(".card").forEach(c => {
+    const l = leads.find(x => x.id === c.dataset.id); if (!l) return;
+    c.onclick = e => {
+      const h = e.target.closest("[data-heart]"), a = e.target.closest("[data-act]");
+      if (h) { e.stopPropagation(); return patch(l, {saved: !l.saved, ...(l.status === "New" && !l.saved ? {status:"Reviewed"} : {})}, l.saved ? "Removed from saved" : "Saved ♥"); }
+      if (a) { e.stopPropagation(); const act = a.dataset.act;
+        if (act === "pass") return patch(l, {status:"Dead"}, "Passed — moved to Dead");
+        if (act === "save") return patch(l, {status:"Reviewed", saved:true}, "Saved ♥");
+        if (act === "contacted") return patch(l, {status:"Contacted"}, "Moved to Contacted"); }
+      openLead(l.id);
+    };
   });
-  if (pts.length) map.fitBounds(pts,{padding:[30,30],maxZoom:13});
-  const missing = rows.filter(l=>l.lat==null||l.lng==null).length;
-  $("#geoMsg").textContent = missing ? `${missing} without a pin` : "";
 }
 
-async function geocodeMissing(){
-  const todo = filtered().filter(l=>(l.lat==null||l.lng==null) && l.address);
-  if (!todo.length) return toast("All leads have pins");
-  $("#geoBtn").disabled = true;
-  for (let i=0;i<todo.length;i++){
-    const l = todo[i];
-    $("#geoMsg").textContent = `Locating ${i+1}/${todo.length}…`;
-    try{
-      const q = encodeURIComponent(`${l.address}, ${l.city||""}, CO ${l.zip||""}`);
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${q}`,{headers:{"Accept":"application/json"}});
-      const d = await r.json();
-      if (d[0]) { const upd = (await api("PATCH",{lat:+d[0].lat,lng:+d[0].lon},l.id)).lead; Object.assign(l, upd); }
-    }catch(e){}
-    await new Promise(r=>setTimeout(r,1100)); // Nominatim allows ~1 request/sec
+/* ---------- render ---------- */
+function render(){
+  // filter button highlight
+  ["#fCity","#fType","#fMax","#fProp"].forEach(s => $(s).classList.toggle("on", !!$(s).value));
+  $("#fStatus").classList.toggle("on", $("#fStatus").value !== "active");
+
+  // New feed
+  const fresh = filtered({status:"New"});
+  const allNew = leads.filter(l => (l.status || "New") === "New").length;
+  $("#newTitle").textContent = `${fresh.length} new lead${fresh.length === 1 ? "" : "s"}`;
+  const b = $("#newBadge"); b.hidden = !allNew; b.textContent = allNew;
+  $("#newGrid").innerHTML = fresh.length ? fresh.map(l => cardHTML(l, "feed")).join("") :
+    `<div class="empty"><b>You're all caught up</b>No new leads match your filters. New ones show up here after each scan.</div>`;
+  bindCards($("#newGrid"));
+
+  // Search
+  const rows = filtered();
+  $("#searchCount").textContent = `${rows.length} result${rows.length === 1 ? "" : "s"}`;
+  $("#searchGrid").innerHTML = rows.length ? rows.map(l => cardHTML(l)).join("") :
+    `<div class="empty"><b>No matches</b>Try clearing a filter or the search box.</div>`;
+  bindCards($("#searchGrid"));
+  if (view === "search") drawMap(rows);
+
+  // Pipeline
+  const pipeRows = filtered({status:""});
+  $("#board").innerHTML = STATUSES.map(s => {
+    const items = pipeRows.filter(r => (r.status || "New") === s);
+    return `<div class="col"><h3><span>${s}</span><span style="color:var(--muted)">${items.length}</span></h3>${items.map(l => cardHTML(l)).join("") || `<div style="color:var(--muted);font-size:13px;padding:6px">Nothing here</div>`}</div>`;
+  }).join("");
+  bindCards($("#board"));
+}
+
+/* ---------- map ---------- */
+function drawMap(rows){
+  if (typeof L === "undefined") return; // map library failed to load; list still works
+  if (!map){
+    map = L.map("map", {zoomControl:true}).setView([39.3,-104.95], 7);
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      {maxZoom:19, attribution:"© OpenStreetMap © CARTO"}).addTo(map);
+    pinLayer = L.layerGroup().addTo(map);
   }
-  $("#geoBtn").disabled = false; render();
+  setTimeout(() => map.invalidateSize(), 60);
+  pinLayer.clearLayers();
+  const pts = [];
+  rows.filter(l => l.lat != null && l.lng != null).forEach(l => {
+    const icon = L.divIcon({className:"", html:`<span class="pin ${typeCls(l.leadType)}">${short(l.amountOwed)}</span>`, iconSize:[0,0]});
+    L.marker([l.lat, l.lng], {icon}).on("click", () => openLead(l.id)).addTo(pinLayer);
+    pts.push([l.lat, l.lng]);
+  });
+  if (pts.length && !drawMap.fitted) { map.fitBounds(pts, {padding:[40,40], maxZoom:13}); drawMap.fitted = true; }
+}
+// Quietly find map coordinates for leads that don't have them (≈1 per second, free OpenStreetMap geocoder).
+let geoBusy = false;
+async function geocodeQueue(){
+  if (geoBusy) return; geoBusy = true;
+  for (const l of leads.filter(l => (l.lat == null || l.lng == null) && l.address && !l._geoFail)) {
+    try {
+      const q = encodeURIComponent(fullAddr(l));
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${q}`);
+      const d = await r.json();
+      if (d[0]) { l.lat = +d[0].lat; l.lng = +d[0].lon; api("PATCH", {lat:l.lat, lng:l.lng}, l.id).catch(()=>{}); if (view === "search") drawMap(filtered()); }
+      else l._geoFail = true;
+    } catch { l._geoFail = true; }
+    await new Promise(r => setTimeout(r, 1100));
+  }
+  geoBusy = false;
 }
 
-function openModal(html){ $("#sheet").innerHTML = html; $("#modal").classList.add("open"); }
+/* ---------- detail sheet ---------- */
+function openModal(html){ $("#sheet").innerHTML = html; $("#modal").classList.add("open"); $("#sheet").scrollTop = 0; }
 function closeModal(){ $("#modal").classList.remove("open"); }
-$("#modal").onclick = (e) => { if (e.target.id === "modal") closeModal(); };
+$("#modal").onclick = e => { if (e.target.id === "modal") closeModal(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
 function openLead(id){
-  const l = leads.find(x=>x.id===id); if(!l) return;
-  const eq = equity(l);
+  const l = leads.find(x => x.id === id); if (!l) return;
+  const eq = equity(l), st = l.status || "New";
+  const kv = (k, v) => `<div><span>${k}</span><b>${v}</b></div>`;
   openModal(`
-    <div style="display:flex;justify-content:space-between;gap:8px"><div>
-      <h2>${esc(l.address)}</h2><div style="color:var(--muted)">${esc(l.city||"")}, CO ${esc(l.zip||"")} · ${esc(l.county||"")} County</div></div>
-      <button class="btn small" id="x">✕</button></div>
-    <div class="kv">
-      <div>Amount owed</div><div><b style="color:var(--accent)">${money(l.amountOwed)}</b></div>
-      ${l.taxOwed!=null?`<div>Taxes owed</div><div>${money(l.taxOwed)}</div>`:""}
-      <div>Est. value</div><div>${money(l.estValue)}</div>
-      <div>Equity est.</div><div class="eq ${eq<0?"neg":""}">${money(eq)}</div>
-      <div>Lead type</div><div>${esc(l.leadType||"—")}</div>
-      <div>Property</div><div>${esc(l.propertyType||"—")}</div>
-      <div>Sale / key date</div><div>${fmtDate(l.keyDate)}</div>
-      <div>Owner (public)</div><div>${esc(l.owner||"—")}</div>
-      <div>Owner mailing</div><div>${esc(l.ownerMailing||"—")}</div>
-      ${l.lender?`<div>Lender</div><div>${esc(l.lender)}</div>`:""}
-      <div>Case / sale #</div><div>${esc(l.caseNumber||"—")}</div>
-      <div>Source</div><div>${l.sourceUrl?`<a href="${esc(l.sourceUrl)}" target="_blank" rel="noopener noreferrer">County record ↗</a>`:"—"}</div>
-      <div>First seen</div><div>${fmtDate(l.firstSeen)}</div>
-    </div>
-    <label>Status</label>
-    <select class="field" id="stat">${STATUSES.map(s=>`<option ${s===(l.status||"New")?"selected":""}>${s}</option>`).join("")}</select>
-    <label>Notes</label>
-    <textarea class="field" id="notes">${esc(l.notes||"")}</textarea>
-    <div class="actions">
-      <button class="btn primary" id="save">Save</button>
-      <button class="btn" id="letter">✉️ Letter</button>
-      <button class="btn" id="script">🚪 Door script</button>
-      <a class="btn" style="text-decoration:none" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.address+", "+(l.city||"")+", CO")}">🗺️ Maps</a>
-      <button class="btn" id="del" style="margin-left:auto;color:#fca5a5">Delete</button>
-    </div>
-    <div id="out"></div>`);
+    <div class="photo" style="position:relative">${photoHTML(l)}<button class="close" id="x">✕</button>
+      <button class="heart" id="dHeart">${heartSVG(l.saved)}</button></div>
+    <div class="pad">
+      <div class="dprice">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"} <small style="font-size:15px;color:var(--muted);font-weight:600">owed</small></div>
+      <div class="daddr">${esc(fullAddr(l))}</div>
+      <div class="chips"><span class="chip" style="color:${typeColor(l.leadType)}">● ${esc(l.leadType || "Lead")}</span>
+        ${l.propertyType ? `<span class="chip">${esc(l.propertyType)}</span>` : ""}
+        <span class="chip">${esc(CITY_COUNTY[l.city] || l.county || "")} County</span></div>
+      <div class="seg" id="seg">${STATUSES.map(s => `<button data-s="${s}" class="${s === st ? "on" : ""}">${s === "Offer Made" ? "Offer" : s}</button>`).join("")}</div>
+      <div class="kv">
+        ${kv("Est. value", money(l.estValue))}
+        ${kv("Equity est.", eq == null ? "—" : `<span class="eq ${eq < 0 ? "neg" : ""}">${money(eq)}</span>`)}
+        ${kv("Key date", fmtDate(l.keyDate))}
+        ${kv("Taxes owed", money(l.taxOwed))}
+        ${kv("Owner (public record)", esc(l.owner || "—"))}
+        ${kv("Owner mailing address", esc(l.ownerMailing || "—"))}
+        ${kv("Lender", esc(l.lender || "—"))}
+        ${kv("Case / sale #", esc(l.caseNumber || "—"))}
+        ${kv("First seen", fmtDate(l.firstSeen))}
+        ${kv("Source", l.sourceUrl ? `<a href="${esc(l.sourceUrl)}" target="_blank" rel="noopener noreferrer">Public record ↗</a>` : "—")}
+      </div>
+      <div class="grid2">
+        <div><label>Est. value</label><input class="field" id="eVal" inputmode="decimal" value="${l.estValue ?? ""}" placeholder="$"></div>
+        <div><label>Amount owed</label><input class="field" id="eOwed" inputmode="decimal" value="${l.amountOwed ?? ""}" placeholder="$"></div>
+      </div>
+      <label>Notes</label><textarea class="field" id="eNotes">${esc(l.notes || "")}</textarea>
+      <div class="btns">
+        <button class="btn primary" id="save">Save changes</button>
+        <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr(l))}">🗺 Directions</a>
+        <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.zillow.com/homes/${encodeURIComponent(fullAddr(l))}_rb/">Zillow ↗</a>
+      </div>
+      <div class="sect">Reach out</div>
+      <div class="btns" style="margin-top:0"><button class="btn" id="letter">✉️ Owner letter</button><button class="btn" id="script">🚪 Door script</button></div>
+      <div id="out"></div>
+      <div class="btns"><button class="btn" id="del" style="color:var(--red)">Delete lead</button></div>
+    </div>`);
   $("#x").onclick = closeModal;
+  $("#dHeart").onclick = () => { patch(l, {saved: !l.saved}); $("#dHeart").innerHTML = heartSVG(l.saved); };
+  $("#seg").onclick = e => { const b = e.target.closest("[data-s]"); if (!b) return;
+    $("#seg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); patch(l, {status: b.dataset.s}, "Moved to " + b.dataset.s); };
   $("#save").onclick = async () => {
-    try { const upd = (await api("PATCH",{status:$("#stat").value,notes:$("#notes").value},id)).lead; Object.assign(l,upd); render(); toast("Saved"); closeModal(); }
-    catch(e){ toast("Save failed: "+e.message); }
-  };
-  $("#del").onclick = async () => {
-    if (!confirm("Delete this lead from the app?")) return;
-    try { await api("DELETE",null,id); leads = leads.filter(x=>x.id!==id); render(); closeModal(); toast("Deleted"); }
-    catch(e){ toast("Delete failed: "+e.message); }
+    await patch(l, {notes: $("#eNotes").value, estValue: $("#eVal").value, amountOwed: $("#eOwed").value});
+    const fresh = await api("GET").catch(() => null); if (fresh) { leads = fresh.leads; render(); }
+    toast("Saved"); closeModal();
   };
   $("#letter").onclick = () => showOut(letterText(l), true);
   $("#script").onclick = () => showOut(scriptText(l), false);
+  $("#del").onclick = async () => {
+    if (!confirm("Delete this lead from the app? This can't be undone.")) return;
+    try { await api("DELETE", null, l.id); leads = leads.filter(x => x.id !== l.id); render(); closeModal(); toast("Deleted"); }
+    catch (e) { toast("Delete failed: " + e.message); }
+  };
 }
-
 function showOut(text, isLetter){
   $("#out").innerHTML = `<div class="letter" id="txt" contenteditable="true">${esc(text)}</div>
-    <div class="actions"><button class="btn small" id="copy">Copy</button>${isLetter?`<button class="btn small" id="print">Print</button>`:""}</div>
-    <div class="warn"><b>Before you send or knock:</b> if the home is in foreclosure, Colorado's Foreclosure Protection Act (C.R.S. 6-1-1101 and after) can apply to buying it. It requires a written contract with required notices, gives the owner a right to cancel, and bans misleading statements. Have a real estate attorney review your contract and letter before your first deal.</div>`;
-  $("#copy").onclick = () => { navigator.clipboard?.writeText($("#txt").innerText).then(()=>toast("Copied")); };
-  const p = $("#print"); if (p) p.onclick = () => { const w = window.open("","_blank"); w.document.write(`<pre style="font:15px/1.6 Georgia,serif;white-space:pre-wrap;max-width:650px;margin:60px auto">${esc($("#txt").innerText)}</pre>`); w.document.close(); w.print(); };
+    <div class="btns"><button class="btn" id="copy">Copy</button>${isLetter ? `<button class="btn" id="print">Print</button>` : ""}</div>
+    <div class="warn"><b>Before you send or knock:</b> If the home is in foreclosure, Colorado's Foreclosure Protection Act (C.R.S. 6-1-1101 and after) can apply to buying it. It requires a written contract with required notices, gives the owner a right to cancel, and bans misleading statements. Have a real estate attorney review your contract and letter before your first deal.</div>`;
+  $("#copy").onclick = () => navigator.clipboard?.writeText($("#txt").innerText).then(() => toast("Copied"));
+  const p = $("#print"); if (p) p.onclick = () => { const w = window.open("", "_blank"); w.document.write(`<pre style="font:15px/1.6 Georgia,serif;white-space:pre-wrap;max-width:650px;margin:60px auto">${esc($("#txt").innerText)}</pre>`); w.document.close(); w.print(); };
 }
-
 function ownerFirst(l){
-  const o = String(l.owner||"").trim();
-  if (!o || /llc|inc|trust|corp|estate|bank/i.test(o)) return "Homeowner";
-  const parts = o.includes(",") ? o.split(",")[1].trim().split(/\s+/) : o.split(/\s+/);
-  const n = parts[0] || "Homeowner";
+  const o = String(l.owner || "").trim();
+  if (!o || /llc|inc|trust|corp|estate|bank|per filing/i.test(o)) return "Homeowner";
+  const n = (o.includes(",") ? o.split(",")[1] : o).trim().split(/\s+/)[0] || "Homeowner";
   return n.charAt(0).toUpperCase() + n.slice(1).toLowerCase();
 }
 function letterText(l){
-  const pre = l.leadType === "Pre-foreclosure" || l.leadType === "Both";
-  const today = new Date().toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"});
+  const pre = l.leadType !== "Tax-delinquent";
+  const today = new Date().toLocaleDateString(undefined, {month:"long", day:"numeric", year:"numeric"});
   return `${today}
 
 Dear ${ownerFirst(l)},
 
-My name is Terel, and I'm a local real estate investor here in Colorado. I'm reaching out about your property at ${l.address}${l.city?", "+l.city:""}.
+My name is Terel, and I'm a local real estate investor here in Colorado. I'm reaching out about your property at ${fullAddr(l)}.
 
 ${pre
  ? "Public records show a foreclosure notice was filed on this property. I know that can be a stressful situation, and I'm not writing to pressure you. You have options, including working with your lender, refinancing, selling on the open market, or selling directly to a buyer like me."
@@ -343,7 +475,7 @@ If a direct sale makes sense for you, I can:
   • Pay closing costs and work with your timeline
   • Put every term in writing so you can review it with anyone you trust
 
-${pre ? "Free, independent help is also available from the Colorado Foreclosure Hotline at 1-877-601-HOPE (4673) and HUD-approved housing counselors. I encourage you to talk with them or an attorney before deciding anything.\n\n" : ""}If you'd like to talk, call or text me at [YOUR PHONE] or email [YOUR EMAIL]. If you're not interested, I won't keep contacting you.
+${pre ? "Free, independent help is also available from the Colorado Foreclosure Hotline at 1-877-601-HOPE (4673), which connects homeowners with HUD-approved housing counselors. I encourage you to talk with them or an attorney before deciding anything.\n\n" : ""}If you'd like to talk, call or text me at [YOUR PHONE] or email [YOUR EMAIL]. If you're not interested, I won't keep contacting you.
 
 Respectfully,
 
@@ -352,98 +484,116 @@ Terel
 [YOUR PHONE]`;
 }
 function scriptText(l){
-  const pre = l.leadType === "Pre-foreclosure" || l.leadType === "Both";
-  return `DOOR SCRIPT: ${l.address}
+  const pre = l.leadType !== "Tax-delinquent";
+  return `DOOR SCRIPT: ${fullAddr(l)}
 
-"Hi, are you ${ownerFirst(l)==="Homeowner"?"the owner of the home":ownerFirst(l)}? My name is Terel. I'm a local investor, and I buy houses directly from owners here in ${l.city||"the area"}.
+"Hi, ${ownerFirst(l) === "Homeowner" ? "are you the owner of the home" : "are you " + ownerFirst(l)}? My name is Terel. I'm a local investor, and I buy houses directly from owners here in ${l.city || "the area"}.
 
-${pre?"I saw a public notice about this property and wanted to introduce myself in person, with no pressure at all.":"I saw this property on a public tax list and wanted to introduce myself in person, with no pressure at all."}
+${pre ? "I saw a public notice about this property and wanted to introduce myself in person, with no pressure at all." : "I saw this property on a public tax list and wanted to introduce myself in person, with no pressure at all."}
 
-If you've ever thought about selling, I can buy as-is and work on your timeline. Would that be something worth a quick conversation?"
+If you've ever thought about selling, I can buy as-is and work on your timeline. Would a quick conversation be worth it?"
 
 IF YES: "Great. What would you need to walk away with for it to make sense for you?" Get their timeline, condition, what's owed, and who's on title. Leave your card.
 IF NO: "Totally understand. Here's my card in case anything changes. Have a good day."
 
-DON'T: promise to "save" the house, guess at what they'll get after a foreclosure, or ask them to sign anything at the door.${pre?"\nIF THEY'RE OPEN TO IT: mention the free Colorado Foreclosure Hotline, 1-877-601-HOPE (4673).":""}`;
+DON'T: promise to "save" the house, guess what they'd get after a foreclosure, or ask them to sign anything at the door.${pre ? "\nIF THEY'RE OPEN TO IT: mention the free Colorado Foreclosure Hotline, 1-877-601-HOPE (4673)." : ""}`;
 }
 
-// ---------- Import / Add / Export ----------
-const HEAD_MAP = {"amount owed":"amountOwed","amountowed":"amountOwed","address":"address","city":"city","county":"county","zip":"zip",
- "lead type":"leadType","leadtype":"leadType","sale / key date":"keyDate","key date":"keyDate","sale date":"keyDate","keydate":"keyDate",
- "status":"status","est. value":"estValue","est value":"estValue","estvalue":"estValue","property type":"propertyType","propertytype":"propertyType",
- "owner":"owner","owner (public record)":"owner","owner mailing address":"ownerMailing","ownermailing":"ownerMailing",
- "case / sale #":"caseNumber","case #":"caseNumber","casenumber":"caseNumber","source link":"sourceUrl","sourceurl":"sourceUrl",
- "notes":"notes","lat":"lat","lng":"lng","lender":"lender","tax owed":"taxOwed","taxowed":"taxOwed"};
-function parseCSV(text){
-  const rows=[]; let row=[], cur="", q=false;
-  for (let i=0;i<text.length;i++){ const c=text[i];
-    if(q){ if(c==='"'&&text[i+1]==='"'){cur+='"';i++;} else if(c==='"') q=false; else cur+=c; }
-    else if(c==='"') q=true; else if(c===','){row.push(cur);cur="";}
-    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n') i++; row.push(cur); rows.push(row); row=[]; cur=""; }
-    else cur+=c; }
-  if(cur||row.length){row.push(cur);rows.push(row);}
-  const head = (rows.shift()||[]).map(h=>HEAD_MAP[h.trim().toLowerCase()]||h.trim());
-  return rows.filter(r=>r.some(x=>x.trim())).map(r=>Object.fromEntries(head.map((h,i)=>[h,(r[i]??"").trim()])));
+/* ---------- key, add, import, export ---------- */
+function askKey(bad){
+  openModal(`<div class="pad"><div class="dprice" style="font-size:22px">Sign in</div>
+    <p style="color:var(--muted)">${bad ? "That key didn't work. " : ""}Enter the ACCESS_KEY you set in Netlify. It's saved on this device only.</p>
+    <input class="field" id="keyIn" type="password" value="${esc(getKey())}" autocomplete="current-password">
+    <div class="btns"><button class="btn primary" id="keySave">Continue</button></div></div>`);
+  $("#keySave").onclick = () => { setKey($("#keyIn").value.trim()); closeModal(); load(); };
+  $("#keyIn").onkeydown = e => { if (e.key === "Enter") $("#keySave").click(); };
 }
-$("#importBtn").onclick = () => {
-  openModal(`<h2>Import leads</h2>
-  <p style="color:var(--muted);font-size:14px">Paste scan results as JSON (<code>{"leads":[…]}</code> or <code>[…]</code>) or CSV with a header row. Existing leads update; your status and notes are kept.</p>
-  <textarea class="field" id="imp" style="min-height:220px" placeholder='[{"address":"123 Main St","city":"Pueblo","county":"Pueblo","amountOwed":84000,"leadType":"Pre-foreclosure","keyDate":"2027-01-13","caseNumber":"2026-0123"}]'></textarea>
-  <div class="actions"><button class="btn primary" id="impGo">Import</button><button class="btn" id="impX">Cancel</button></div>`);
+$("#menuBtn").onclick = () => {
+  openModal(`<div class="pad"><div class="dprice" style="font-size:22px">More</div>
+    <div class="btns" style="flex-direction:column;align-items:stretch">
+      <button class="btn" id="mImport">⬆ Import leads (JSON or CSV)</button>
+      <button class="btn" id="mExport">⬇ Export current list (CSV)</button>
+      <button class="btn" id="mGeo">📍 Find map pins for all leads</button>
+      <button class="btn" id="mKey">🔑 Change access key</button>
+      <button class="btn" id="mClose">Close</button></div></div>`);
+  $("#mClose").onclick = closeModal;
+  $("#mKey").onclick = () => askKey(false);
+  $("#mGeo").onclick = () => { leads.forEach(l => delete l._geoFail); geocodeQueue(); closeModal(); toast("Finding pins in the background…"); };
+  $("#mExport").onclick = () => {
+    const cols = ["amountOwed","address","city","county","zip","leadType","keyDate","status","saved","estValue","propertyType","owner","ownerMailing","lender","caseNumber","sourceUrl","firstSeen","notes"];
+    const csv = [cols.join(",")].concat(filtered({status:""}).map(l => cols.map(c => `"${String(l[c] ?? "").replace(/"/g,'""')}"`).join(","))).join("\n");
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv"}));
+    a.download = `leads-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+  };
+  $("#mImport").onclick = importSheet;
+};
+const HEAD_MAP = {"amount owed":"amountOwed","address":"address","city":"city","county":"county","zip":"zip","lead type":"leadType","sale / key date":"keyDate","key date":"keyDate","sale date":"keyDate","status":"status","est. value":"estValue","est value":"estValue","property type":"propertyType","home type":"propertyType","owner":"owner","owner (public record)":"owner","owner mailing address":"ownerMailing","case / sale #":"caseNumber","case #":"caseNumber","source link":"sourceUrl","notes":"notes","lender":"lender","tax owed":"taxOwed","lat":"lat","lng":"lng"};
+function parseCSV(text){
+  const rows = []; let row = [], cur = "", q = false;
+  for (let i = 0; i < text.length; i++){ const c = text[i];
+    if (q){ if (c === '"' && text[i+1] === '"'){ cur += '"'; i++; } else if (c === '"') q = false; else cur += c; }
+    else if (c === '"') q = true; else if (c === ","){ row.push(cur); cur = ""; }
+    else if (c === "\n" || c === "\r"){ if (c === "\r" && text[i+1] === "\n") i++; row.push(cur); rows.push(row); row = []; cur = ""; }
+    else cur += c; }
+  if (cur || row.length){ row.push(cur); rows.push(row); }
+  const head = (rows.shift() || []).map(h => HEAD_MAP[h.trim().toLowerCase()] || h.trim());
+  return rows.filter(r => r.some(x => x.trim())).map(r => Object.fromEntries(head.map((h, i) => [h, (r[i] ?? "").trim()])));
+}
+function importSheet(){
+  openModal(`<div class="pad"><div class="dprice" style="font-size:22px">Import leads</div>
+    <p style="color:var(--muted);font-size:14px">Paste scan results as JSON (<code>{"leads":[…]}</code>) or CSV with a header row. Existing leads update in place, and your status, saves and notes are kept.</p>
+    <textarea class="field" id="imp" style="min-height:220px"></textarea>
+    <div class="btns"><button class="btn primary" id="impGo">Import</button><button class="btn" id="impX">Cancel</button></div></div>`);
   $("#impX").onclick = closeModal;
   $("#impGo").onclick = async () => {
-    const t = $("#imp").value.trim(); if(!t) return;
-    let items;
-    try { const j = JSON.parse(t); items = Array.isArray(j) ? j : j.leads; }
-    catch { items = parseCSV(t); }
+    const t = $("#imp").value.trim(); if (!t) return;
+    let items; try { const j = JSON.parse(t); items = Array.isArray(j) ? j : j.leads; } catch { items = parseCSV(t); }
     if (!Array.isArray(items) || !items.length) return toast("Nothing to import");
-    try { const r = await api("POST",{leads:items}); toast(`Added ${r.added}, updated ${r.updated}`); closeModal(); load(); }
-    catch(e){ toast("Import failed: "+e.message); }
+    items.forEach(i => { if (!i.county && CITY_COUNTY[i.city]) i.county = CITY_COUNTY[i.city]; });
+    try { const r = await api("POST", {leads: items}); closeModal(); toast(`Added ${r.added}, updated ${r.updated}`); load(); }
+    catch (e) { toast("Import failed: " + e.message); }
   };
-};
-$("#addBtn").onclick = () => {
-  openModal(`<h2>Add a lead</h2>
-  <label>Address *</label><input class="field" id="a_address">
-  <div class="grid2"><div><label>City</label><select class="field" id="a_city">${CITIES.map(c=>`<option>${c.city}</option>`).join("")}</select></div>
-  <div><label>ZIP</label><input class="field" id="a_zip" inputmode="numeric"></div></div>
-  <div class="grid2"><div><label>Amount owed</label><input class="field" id="a_amountOwed" inputmode="decimal"></div>
-  <div><label>Est. value</label><input class="field" id="a_estValue" inputmode="decimal"></div></div>
-  <div class="grid2"><div><label>Lead type</label><select class="field" id="a_leadType"><option>Pre-foreclosure</option><option>Tax-delinquent</option><option>Both</option></select></div>
-  <div><label>Property type</label><select class="field" id="a_propertyType"><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select></div></div>
-  <div class="grid2"><div><label>Sale / key date</label><input class="field" type="date" id="a_keyDate"></div>
-  <div><label>Case / sale #</label><input class="field" id="a_caseNumber"></div></div>
-  <label>Owner (public record)</label><input class="field" id="a_owner">
-  <label>Owner mailing address</label><input class="field" id="a_ownerMailing">
-  <label>Source link</label><input class="field" id="a_sourceUrl" type="url">
-  <label>Notes</label><textarea class="field" id="a_notes"></textarea>
-  <div class="actions"><button class="btn primary" id="aGo">Add lead</button><button class="btn" id="aX">Cancel</button></div>`);
+}
+$("#navAdd").onclick = () => {
+  openModal(`<div class="pad"><div class="dprice" style="font-size:22px">Add a lead</div>
+    <label>Address *</label><input class="field" id="a_address" placeholder="123 Main St">
+    <div class="grid2"><div><label>City</label><select class="field" id="a_city">${Object.keys(CITY_COUNTY).map(c => `<option>${c}</option>`).join("")}</select></div>
+      <div><label>ZIP</label><input class="field" id="a_zip" inputmode="numeric"></div></div>
+    <div class="grid2"><div><label>Amount owed</label><input class="field" id="a_amountOwed" inputmode="decimal" placeholder="$"></div>
+      <div><label>Est. value</label><input class="field" id="a_estValue" inputmode="decimal" placeholder="$"></div></div>
+    <div class="grid2"><div><label>Lead type</label><select class="field" id="a_leadType"><option>Pre-foreclosure</option><option>Tax-delinquent</option><option>Both</option></select></div>
+      <div><label>Home type</label><select class="field" id="a_propertyType"><option value="">—</option><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select></div></div>
+    <div class="grid2"><div><label>Key / sale date</label><input class="field" type="date" id="a_keyDate"></div>
+      <div><label>Case / sale #</label><input class="field" id="a_caseNumber"></div></div>
+    <label>Owner (public record)</label><input class="field" id="a_owner">
+    <label>Owner mailing address</label><input class="field" id="a_ownerMailing">
+    <label>Source link</label><input class="field" id="a_sourceUrl" type="url">
+    <label>Notes</label><textarea class="field" id="a_notes"></textarea>
+    <div class="btns"><button class="btn primary" id="aGo">Add lead</button><button class="btn" id="aX">Cancel</button></div></div>`);
   $("#aX").onclick = closeModal;
   $("#aGo").onclick = async () => {
     const f = ["address","city","zip","amountOwed","estValue","leadType","propertyType","keyDate","caseNumber","owner","ownerMailing","sourceUrl","notes"];
-    const lead = Object.fromEntries(f.map(k=>[k,$("#a_"+k).value.trim()]));
+    const lead = Object.fromEntries(f.map(k => [k, $("#a_" + k).value.trim()]));
     if (!lead.address) return toast("Address is required");
-    lead.county = CITIES.find(c=>c.city===lead.city)?.county || "";
-    try { await api("POST",{leads:[lead]}); toast("Lead added"); closeModal(); load(); }
-    catch(e){ toast("Add failed: "+e.message); }
+    lead.county = CITY_COUNTY[lead.city] || "";
+    try { await api("POST", {leads: [lead]}); closeModal(); toast("Lead added to New"); load(); }
+    catch (e) { toast("Add failed: " + e.message); }
   };
 };
-$("#exportBtn").onclick = () => {
-  const cols = ["amountOwed","address","city","county","zip","leadType","keyDate","status","estValue","propertyType","owner","ownerMailing","caseNumber","sourceUrl","firstSeen","notes"];
-  const csv = [cols.join(",")].concat(filtered().map(l=>cols.map(c=>`"${String(l[c]??"").replace(/"/g,'""')}"`).join(","))).join("\n");
-  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-  a.download = `leads-${new Date().toISOString().slice(0,10)}.csv`; a.click();
-};
-$("#keyBtn").onclick = () => askKey(false);
-$("#geoBtn").onclick = geocodeMissing;
 
-document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
-  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on", x===t));
-  view = t.dataset.view;
-  ["list","map","board"].forEach(v => $("#view-"+v).hidden = v !== view);
-  render();
+/* ---------- nav + filters ---------- */
+document.querySelectorAll(".nav button[data-v]").forEach(b => b.onclick = () => {
+  view = b.dataset.v;
+  document.querySelectorAll(".nav button[data-v]").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === "v-" + view));
+  window.scrollTo(0, 0); render();
 });
-["#fType","#fProp","#fStatus","#fSort"].forEach(s => $(s).onchange = render);
-$("#fSearch").oninput = render;
+$("#mapToggle").onclick = () => {
+  mapMode = !mapMode; $("#split").classList.toggle("mapmode", mapMode);
+  $("#mapToggle").textContent = mapMode ? "☰ List" : "🗺 Map"; if (mapMode) drawMap(filtered());
+};
+["#fCity","#fType","#fMax","#fProp","#fStatus","#fSort"].forEach(s => $(s).onchange = () => { drawMap.fitted = false; render(); });
+let qT; $("#q").oninput = () => { clearTimeout(qT); qT = setTimeout(() => { drawMap.fitted = false; render(); }, 150); };
 load();
 </script>
 </body>

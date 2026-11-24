@@ -5,6 +5,7 @@
 //   DELETE /api/leads?id=<id>
 // Every request needs header:  x-access-key: <ACCESS_KEY env var>
 import { getStore } from "@netlify/blobs";
+import seedLeads from "../lib/seed-leads.mjs";
 
 const STORE = "lead-finder";
 const KEY = "leads";
@@ -12,7 +13,7 @@ const STATUSES = ["New", "Reviewed", "Contacted", "Offer Made", "Dead"];
 const FIELDS = [
   "amountOwed", "address", "city", "county", "zip", "leadType", "keyDate",
   "status", "estValue", "propertyType", "owner", "ownerMailing", "caseNumber",
-  "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed",
+  "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen",
 ];
 
 const json = (body, status = 200) =>
@@ -40,11 +41,18 @@ function clean(input) {
     }
   }
   if (out.status && !STATUSES.includes(out.status)) delete out.status;
+  if (out.saved !== undefined) out.saved = out.saved === true || out.saved === "true";
   return out;
 }
 
 async function load(store) {
-  return (await store.get(KEY, { type: "json" })) || [];
+  const existing = await store.get(KEY, { type: "json" });
+  if (existing) return existing;
+  // First run ever: load the starter leads so the app isn't empty.
+  const today = new Date().toISOString().slice(0, 10);
+  const seeded = seedLeads.map((l) => ({ saved: false, ...clean(l), id: leadId(l), updatedAt: today }));
+  await store.setJSON(KEY, seeded);
+  return seeded;
 }
 
 export default async (req) => {
@@ -76,7 +84,7 @@ export default async (req) => {
       const prev = byId.get(lid);
       if (prev) {
         // keep the user's own pipeline status/notes unless the scanner marks it Dead
-        const merged = { ...prev, ...c, id: lid, updatedAt: today };
+        const merged = { ...prev, ...c, id: lid, firstSeen: prev.firstSeen, updatedAt: today };
         if (c.status !== "Dead") merged.status = prev.status;
         if (prev.notes && c.notes && !prev.notes.includes(c.notes)) merged.notes = `${prev.notes}\n${c.notes}`;
         else merged.notes = prev.notes || c.notes || "";
