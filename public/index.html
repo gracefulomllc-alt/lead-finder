@@ -218,7 +218,6 @@ async function api(method, body, id, path = "/api/leads"){
   return d;
 }
 async function load(){
-  if (!getKey()) return askKey(false);
   try {
     const [d, cfg] = await Promise.all([api("GET"), api("GET", null, null, "/api/config").catch(() => ({}))]);
     leads = d.leads || []; svKey = cfg.streetViewKey || "";
@@ -514,7 +513,7 @@ $("#menuBtn").onclick = () => {
       <button class="btn" id="mImport">⬆ Import leads (JSON or CSV)</button>
       <button class="btn" id="mExport">⬇ Export current list (CSV)</button>
       <button class="btn" id="mGeo">📍 Find map pins for all leads</button>
-      <button class="btn" id="mKey">🔑 Change access key</button>
+      <button class="btn" id="mKey">🔑 Access key (only if you turn one on)</button>
       <button class="btn" id="mClose">Close</button></div></div>`);
   $("#mClose").onclick = closeModal;
   $("#mKey").onclick = () => askKey(false);

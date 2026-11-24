@@ -3,7 +3,7 @@
 //   POST   /api/leads            -> body: { leads: [ {...}, ... ] }  (upsert; used by scanners / your agent app)
 //   PATCH  /api/leads?id=<id>    -> body: { status?, notes?, lat?, lng?, ... }
 //   DELETE /api/leads?id=<id>
-// Every request needs header:  x-access-key: <ACCESS_KEY env var>
+// Open by default. If you set an ACCESS_KEY env var, every request then needs header  x-access-key: <ACCESS_KEY>
 import { getStore } from "@netlify/blobs";
 import seedLeads from "../lib/seed-leads.mjs";
 
@@ -56,9 +56,9 @@ async function load(store) {
 }
 
 export default async (req) => {
+  // Optional lock: only enforced if an ACCESS_KEY environment variable is set in Netlify.
   const accessKey = process.env.ACCESS_KEY;
-  if (!accessKey) return json({ error: "ACCESS_KEY env var not set on the site" }, 500);
-  if (req.headers.get("x-access-key") !== accessKey) return json({ error: "unauthorized" }, 401);
+  if (accessKey && req.headers.get("x-access-key") !== accessKey) return json({ error: "unauthorized" }, 401);
 
   const store = getStore({ name: STORE, consistency: "strong" });
   const url = new URL(req.url);

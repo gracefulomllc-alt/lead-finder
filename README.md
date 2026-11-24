@@ -10,7 +10,7 @@ A private web app that lists distressed properties (pre-foreclosures and tax-del
 
 1. Create a new GitHub repo (for example `lead-finder`, **private**) and upload everything in this folder.
 2. In Netlify, go to **Add new site → Import from Git**, pick the repo, and leave the build settings alone. `netlify.toml` already handles them.
-3. In Netlify, go to **Site configuration → Environment variables** and add `ACCESS_KEY` set to a long random password. This one key locks both the app and the API.
+3. *(Optional lock)* The app is open by default — no sign-in. To lock it later, add an `ACCESS_KEY` environment variable in Netlify; the app will then ask for it once per device.
 4. *(Optional, for house photos)* Add `GOOGLE_MAPS_KEY` — a Google Maps API key with **Street View Static API** enabled. In Google Cloud, restrict it to HTTP referrer `https://YOUR-SITE.netlify.app/*`. Without it, cards show a clean placeholder.
 5. Redeploy. Open the site, tap 🔑, and enter your key. The key is saved on that device.
 
@@ -18,7 +18,7 @@ Leads are stored in Netlify Blobs (built in, free tier). No database setup is ne
 
 ## API (for your agent app or a scanner)
 
-Every request needs the header `x-access-key: <ACCESS_KEY>`.
+No key needed by default. If you set `ACCESS_KEY` in Netlify, send it as the header `x-access-key`.
 
 | Method | URL | Body | Does |
 |---|---|---|---|
