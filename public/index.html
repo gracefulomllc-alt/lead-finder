@@ -164,7 +164,8 @@ textarea.field{min-height:90px;resize:vertical}
     <button class="icon-btn" id="menuBtn" title="More">⋯</button>
   </div>
   <div class="filters">
-    <select class="fbtn" id="fCity"><option value="">All cities</option><option>Arvada</option><option>Loveland</option><option>Pueblo</option><option>Colorado Springs</option></select>
+    <select class="fbtn" id="fCounty"><option value="">All counties</option></select>
+    <select class="fbtn" id="fCity"><option value="">All cities</option></select>
     <select class="fbtn" id="fType"><option value="">Lead type</option><option>Pre-foreclosure</option><option>Tax-delinquent</option><option>Both</option></select>
     <select class="fbtn" id="fMax"><option value="">Max owed</option><option value="100000">Under $100K</option><option value="150000">Under $150K</option><option value="200000">Under $200K</option><option value="300000">Under $300K</option><option value="400000">Under $400K</option></select>
     <select class="fbtn" id="fProp"><option value="">Home type</option><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select>
@@ -211,7 +212,8 @@ textarea.field{min-height:90px;resize:vertical}
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-const CITY_COUNTY = {"Arvada":"Jefferson","Loveland":"Larimer","Pueblo":"Pueblo","Colorado Springs":"El Paso"};
+const CITY_COUNTY = {"Arvada":"Jefferson","Lakewood":"Jefferson","Golden":"Jefferson","Littleton":"Arapahoe","Loveland":"Larimer","Fort Collins":"Larimer","Estes Park":"Larimer","Greeley":"Weld","Windsor":"Weld","Evans":"Weld","Longmont":"Boulder","Boulder":"Boulder","Lafayette":"Boulder","Louisville":"Boulder","Denver":"Denver","Aurora":"Arapahoe","Centennial":"Arapahoe","Englewood":"Arapahoe","Westminster":"Adams","Thornton":"Adams","Northglenn":"Adams","Brighton":"Adams","Commerce City":"Adams","Broomfield":"Broomfield","Castle Rock":"Douglas","Parker":"Douglas","Highlands Ranch":"Douglas","Pueblo":"Pueblo","Pueblo West":"Pueblo","Colorado Springs":"El Paso","Fountain":"El Paso","Security-Widefield":"El Paso","Monument":"El Paso","Woodland Park":"Teller","Cañon City":"Fremont","Florence":"Fremont","Trinidad":"Las Animas","Walsenburg":"Huerfano","La Junta":"Otero","Rocky Ford":"Otero","Lamar":"Prowers","Alamosa":"Alamosa","Grand Junction":"Mesa","Montrose":"Montrose","Durango":"La Plata","Sterling":"Logan","Fort Morgan":"Morgan"};
+const CO_COUNTIES = ["Adams", "Alamosa", "Arapahoe", "Archuleta", "Baca", "Bent", "Boulder", "Broomfield", "Chaffee", "Cheyenne", "Clear Creek", "Conejos", "Costilla", "Crowley", "Custer", "Delta", "Denver", "Dolores", "Douglas", "Eagle", "El Paso", "Elbert", "Fremont", "Garfield", "Gilpin", "Grand", "Gunnison", "Hinsdale", "Huerfano", "Jackson", "Jefferson", "Kiowa", "Kit Carson", "La Plata", "Lake", "Larimer", "Las Animas", "Lincoln", "Logan", "Mesa", "Mineral", "Moffat", "Montezuma", "Montrose", "Morgan", "Otero", "Ouray", "Park", "Phillips", "Pitkin", "Prowers", "Pueblo", "Rio Blanco", "Rio Grande", "Routt", "Saguache", "San Juan", "San Miguel", "Sedgwick", "Summit", "Teller", "Washington", "Weld", "Yuma"];
 const STATUSES = ["New","Reviewed","Contacted","Offer Made","Dead"];
 let leads = [], view = "new", svKey = "", map, pinLayer, mapMode = false;
 let settings = {senderName:"Leslie", company:"Graceful OM LLC", phone:"", email:"", addressLine1:"", city:"", state:"CO", zip:""}, mailInfo = {enabled:false, mode:null};
@@ -273,11 +275,11 @@ const heartSVG = on => `<svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.
 
 /* ---------- filtering ---------- */
 function filtered(opts = {}){
-  const q = $("#q").value.toLowerCase().trim(), city = $("#fCity").value, t = $("#fType").value,
+  const q = $("#q").value.toLowerCase().trim(), city = $("#fCity").value, county = $("#fCounty").value, t = $("#fType").value,
     max = +$("#fMax").value || 0, p = $("#fProp").value, s = opts.status ?? $("#fStatus").value, sort = $("#fSort").value;
   const big = Number.MAX_SAFE_INTEGER;
   return leads.filter(l =>
-    (!city || l.city === city) && (!t || l.leadType === t) && (!p || l.propertyType === p) &&
+    (!city || l.city === city) && (!county || countyOf(l) === county) && (!t || l.leadType === t) && (!p || l.propertyType === p) &&
     (!max || (l.amountOwed != null && l.amountOwed <= max)) &&
     (s === "" ? true : s === "active" ? l.status !== "Dead" : s === "saved" ? l.saved : l.status === s) &&
     (!q || [l.address,l.city,l.zip,l.owner,l.caseNumber,l.lender,l.notes].join(" ").toLowerCase().includes(q))
@@ -308,7 +310,7 @@ function cardHTML(l, mode){
       <div class="price">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"}<small>${l.amountOwedSource === "original-loan" ? "orig. loan" : "owed"}</small></div>
       ${facts ? `<div class="facts">${facts}</div>` : ""}
       <div class="addr">${esc(fullAddr(l))}</div>
-      <div class="meta"><span>${[l.propertyType ? esc(l.propertyType) : "", l.keyDate ? "Key date " + fmtDate(l.keyDate) : esc(CITY_COUNTY[l.city] || l.county || "") + " County"].filter(Boolean).join(" · ")}</span>
+      <div class="meta"><span>${[l.propertyType ? esc(l.propertyType) : "", l.keyDate ? "Key date " + fmtDate(l.keyDate) : esc(countyOf(l)) + " County"].filter(Boolean).join(" · ")}</span>
         <span class="status st-${st.split(" ")[0]}">${esc(st)}</span></div>
     </div>
     ${mode === "feed" ? `<div class="triage">
@@ -333,9 +335,22 @@ function bindCards(root){
 }
 
 /* ---------- render ---------- */
+const countyOf = l => l.county || CITY_COUNTY[l.city] || "";
+function fillPlaceFilters(){
+  const cSel = $("#fCounty"), tSel = $("#fCity"), curC = cSel.value, curT = tSel.value;
+  const count = (arr) => arr.reduce((m, k) => (k && (m[k] = (m[k] || 0) + 1), m), {});
+  const byC = count(leads.map(countyOf));
+  cSel.innerHTML = `<option value="">All counties</option>` + Object.keys(byC).sort().map(c => `<option value="${esc(c)}">${esc(c)} County (${byC[c]})</option>`).join("");
+  cSel.value = byC[curC] ? curC : "";
+  const inC = leads.filter(l => !cSel.value || countyOf(l) === cSel.value);
+  const byT = count(inC.map(l => l.city));
+  tSel.innerHTML = `<option value="">All cities</option>` + Object.keys(byT).sort().map(c => `<option value="${esc(c)}">${esc(c)} (${byT[c]})</option>`).join("");
+  tSel.value = byT[curT] ? curT : "";
+}
 function render(){
+  fillPlaceFilters();
   // filter button highlight
-  ["#fCity","#fType","#fMax","#fProp"].forEach(s => $(s).classList.toggle("on", !!$(s).value));
+  ["#fCounty","#fCity","#fType","#fMax","#fProp"].forEach(s => $(s).classList.toggle("on", !!$(s).value));
   $("#fStatus").classList.toggle("on", $("#fStatus").value !== "active");
 
   // New feed
@@ -420,7 +435,7 @@ const VALUE_SRC = {
   "manual": ["med","Medium","Your own estimate."],
 };
 function owedConf(l){
-  if (l.amountOwed == null) return ["none","Missing","No amount yet. Look up the case with the " + (CITY_COUNTY[l.city] || l.county || "county") + " County Public Trustee."];
+  if (l.amountOwed == null) return ["none","Missing","No amount yet. Look up the case with the " + (countyOf(l) || "county") + " County Public Trustee."];
   return OWED_SRC[l.amountOwedSource] || ["none","Not verified","Where this number came from wasn't recorded. Treat it as a rough guess."];
 }
 function valueConf(l){
@@ -449,7 +464,7 @@ function streetViewLink(l){
 
 function openLead(id){
   const l = leads.find(x => x.id === id); if (!l) return;
-  const st = l.status || "New", county = CITY_COUNTY[l.city] || l.county || "";
+  const st = l.status || "New", county = countyOf(l);
   const oc = owedConf(l), vc = valueConf(l), ec = equityConf(l), eq = equity(l);
   const abs = absentee(l);
   const owedLbl = l.amountOwedSource === "original-loan" ? "Original loan amount" : l.leadType === "Tax-delinquent" ? "Taxes owed" : "Amount owed";
@@ -778,8 +793,9 @@ function importSheet(){
 $("#navAdd").onclick = () => {
   openModal(`<div class="pad"><div class="dprice" style="font-size:22px">Add a lead</div>
     <label>Address *</label><input class="field" id="a_address" placeholder="123 Main St">
-    <div class="grid2"><div><label>City</label><select class="field" id="a_city">${Object.keys(CITY_COUNTY).map(c => `<option>${c}</option>`).join("")}</select></div>
+    <div class="grid2"><div><label>City</label><input class="field" id="a_city" list="cityList" placeholder="City"><datalist id="cityList">${Object.keys(CITY_COUNTY).map(c => `<option value="${c}">`).join("")}</datalist></div>
       <div><label>ZIP</label><input class="field" id="a_zip" inputmode="numeric"></div></div>
+    <label>County</label><select class="field" id="a_county"><option value="">Pick from city</option>${CO_COUNTIES.map(c => `<option>${c}</option>`).join("")}</select>
     <div class="grid2"><div><label>Amount owed</label><input class="field" id="a_amountOwed" inputmode="decimal" placeholder="$"></div>
       <div><label>Est. value</label><input class="field" id="a_estValue" inputmode="decimal" placeholder="$"></div></div>
     <div class="grid2"><div><label>Lead type</label><select class="field" id="a_leadType"><option>Pre-foreclosure</option><option>Tax-delinquent</option><option>Both</option></select></div>
@@ -796,7 +812,7 @@ $("#navAdd").onclick = () => {
     const f = ["address","city","zip","amountOwed","estValue","leadType","propertyType","keyDate","caseNumber","owner","ownerMailing","sourceUrl","notes"];
     const lead = Object.fromEntries(f.map(k => [k, $("#a_" + k).value.trim()]));
     if (!lead.address) return toast("Address is required");
-    lead.county = CITY_COUNTY[lead.city] || "";
+    lead.county = $("#a_county").value || CITY_COUNTY[lead.city] || "";
     try { await api("POST", {leads: [lead]}); closeModal(); toast("Lead added to New"); load(); }
     catch (e) { toast("Add failed: " + e.message); }
   };
@@ -813,7 +829,7 @@ $("#mapToggle").onclick = () => {
   mapMode = !mapMode; $("#split").classList.toggle("mapmode", mapMode);
   $("#mapToggle").textContent = mapMode ? "☰ List" : "🗺 Map"; if (mapMode) drawMap(filtered());
 };
-["#fCity","#fType","#fMax","#fProp","#fStatus","#fSort"].forEach(s => $(s).onchange = () => { drawMap.fitted = false; render(); });
+["#fCounty","#fCity","#fType","#fMax","#fProp","#fStatus","#fSort"].forEach(s => $(s).onchange = () => { drawMap.fitted = false; render(); });
 let qT; $("#q").oninput = () => { clearTimeout(qT); qT = setTimeout(() => { drawMap.fitted = false; render(); }, 150); };
 load();
 </script>
