@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#0f172a">
+<title>Lead Finder – Distressed Properties</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{--bg:#0f172a;--panel:#111c33;--card:#16233f;--line:#243557;--text:#e8eefc;--muted:#93a3c4;--accent:#f59e0b;--accent2:#22c55e;--red:#ef4444;--blue:#3b82f6;--purple:#a855f7;--radius:14px}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{position:sticky;top:0;z-index:20;background:rgba(15,23,42,.96);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:10px 14px calc(8px)}
+.top{display:flex;align-items:center;gap:10px}
+.brand{font-weight:800;font-size:18px;letter-spacing:.2px}
+.brand span{color:var(--accent)}
+.spacer{flex:1}
+button,select,input,textarea{font:inherit;color:var(--text)}
+.btn{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 12px;cursor:pointer}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#1b1300;font-weight:700}
+.btn.small{padding:5px 9px;font-size:13px}
+.tabs{display:flex;gap:6px;margin-top:10px}
+.tab{flex:1;text-align:center;padding:8px;border-radius:10px;background:var(--panel);border:1px solid var(--line);cursor:pointer;font-weight:600}
+.tab.on{background:var(--accent);color:#1b1300;border-color:var(--accent)}
+.filters{display:flex;gap:6px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+.chip{white-space:nowrap;padding:6px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel);cursor:pointer;font-size:13px}
+.chip.on{background:#fff2;border-color:var(--accent);color:var(--accent)}
+.row2{display:flex;gap:6px;margin-top:6px}
+.row2 select,.row2 input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 9px}
+main{padding:12px 14px 90px;max-width:1100px;margin:0 auto}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:10px}
+.stat b{display:block;font-size:20px}
+.stat small{color:var(--muted)}
+.list{display:grid;gap:10px}
+@media(min-width:760px){.list{grid-template-columns:1fr 1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px;cursor:pointer}
+.card:active{transform:scale(.99)}
+.card .amt{font-size:22px;font-weight:800;color:var(--accent)}
+.card .addr{font-weight:600;margin-top:2px}
+.meta{color:var(--muted);font-size:13px;margin-top:4px;display:flex;flex-wrap:wrap;gap:6px 10px}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:700}
+.p-pre{background:#ef444433;color:#fca5a5}.p-tax{background:#f59e0b33;color:#fcd34d}.p-both{background:#a855f733;color:#d8b4fe}
+.s-New{background:#3b82f633;color:#93c5fd}.s-Reviewed{background:#64748b44;color:#cbd5e1}.s-Contacted{background:#eab30833;color:#fde68a}.s-Offer{background:#22c55e33;color:#86efac}.s-Dead{background:#33415588;color:#94a3b8}
+.eq{color:var(--accent2);font-weight:700}
+.eq.neg{color:var(--red)}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+#map{height:calc(100vh - 250px);min-height:380px;border-radius:var(--radius);border:1px solid var(--line)}
+.board{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px}
+.col{min-width:240px;flex:1;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:8px}
+.col h3{margin:4px 4px 8px;font-size:14px;display:flex;justify-content:space-between}
+.col .card{margin-bottom:8px;padding:10px}
+.col .card .amt{font-size:17px}
+.modal{position:fixed;inset:0;background:#000a;z-index:50;display:none;align-items:flex-end;justify-content:center}
+.modal.open{display:flex}
+.sheet{background:var(--panel);width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px;border:1px solid var(--line)}
+@media(min-width:760px){.modal{align-items:center}.sheet{border-radius:18px}}
+.sheet h2{margin:0 0 4px;font-size:19px}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:6px 10px;margin:12px 0;font-size:14px}
+.kv div:nth-child(odd){color:var(--muted)}
+label{display:block;font-size:13px;color:var(--muted);margin:10px 0 4px}
+.field{width:100%;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px}
+textarea.field{min-height:90px;resize:vertical}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.letter{white-space:pre-wrap;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:14px;margin-top:8px}
+.warn{background:#f59e0b1a;border:1px solid #f59e0b55;border-radius:10px;padding:10px;font-size:13px;margin-top:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#000d;padding:10px 16px;border-radius:10px;z-index:60;display:none}
+a{color:#93c5fd}
+.fab{position:fixed;right:16px;bottom:18px;z-index:30;border-radius:999px;padding:13px 18px;box-shadow:0 6px 20px #0008}
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div class="brand">Lead<span>Finder</span></div>
+    <div class="spacer"></div>
+    <button class="btn small" id="importBtn">Import</button>
+    <button class="btn small" id="exportBtn">CSV</button>
+    <button class="btn small" id="keyBtn" title="Access key">🔑</button>
+  </div>
+  <div class="tabs">
+    <div class="tab on" data-view="list">List</div>
+    <div class="tab" data-view="map">Map</div>
+    <div class="tab" data-view="board">Pipeline</div>
+  </div>
+  <div class="filters" id="cityChips"></div>
+  <div class="row2">
+    <select id="fType"><option value="">All lead types</option><option>Pre-foreclosure</option><option>Tax-delinquent</option><option>Both</option></select>
+    <select id="fProp"><option value="">All property types</option><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select>
+  </div>
+  <div class="row2">
+    <select id="fStatus"><option value="active">Hide Dead</option><option value="">All statuses</option><option>New</option><option>Reviewed</option><option>Contacted</option><option>Offer Made</option><option>Dead</option></select>
+    <select id="fSort"><option value="owedAsc">Cheapest to get into</option><option value="owedDesc">Most owed first</option><option value="equityDesc">Biggest equity gap</option><option value="dateAsc">Soonest sale date</option><option value="newest">Newest found</option></select>
+  </div>
+  <div class="row2"><input id="fSearch" placeholder="Search address, owner, case #"></div>
+</header>
+
+<main>
+  <section id="view-list">
+    <div class="stats" id="stats"></div>
+    <div class="list" id="list"></div>
+  </section>
+  <section id="view-map" hidden>
+    <div class="actions" style="margin:0 0 8px"><button class="btn small" id="geoBtn">📍 Locate missing pins</button><span id="geoMsg" style="color:var(--muted);font-size:13px;align-self:center"></span></div>
+    <div id="map"></div>
+  </section>
+  <section id="view-board" hidden>
+    <div class="board" id="board"></div>
+  </section>
+</main>
+
+<button class="btn primary fab" id="addBtn">＋ Lead</button>
+
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const CITIES = [
+  {city:"Arvada", county:"Jefferson"},
+  {city:"Loveland", county:"Larimer"},
+  {city:"Pueblo", county:"Pueblo"},
+  {city:"Colorado Springs", county:"El Paso"},
+];
+const STATUSES = ["New","Reviewed","Contacted","Offer Made","Dead"];
+const API = "/api/leads";
+let leads = [], view = "list", cityFilter = "", map, markers;
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const money = (n) => (n === null || n === undefined || n === "" || isNaN(n)) ? "—" : "$" + Math.round(n).toLocaleString();
+const fmtDate = (d) => { if(!d) return "—"; const t = new Date(d + (String(d).length===10?"T12:00:00":"")); return isNaN(t) ? esc(d) : t.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); };
+const equity = (l) => (l.estValue != null && l.amountOwed != null) ? l.estValue - l.amountOwed : null;
+const typeClass = (t) => t === "Pre-foreclosure" ? "p-pre" : t === "Tax-delinquent" ? "p-tax" : "p-both";
+const statusClass = (s) => "s-" + String(s||"New").split(" ")[0];
+function toast(m){ const t=$("#toast"); t.textContent=m; t.style.display="block"; clearTimeout(toast.t); toast.t=setTimeout(()=>t.style.display="none",2600); }
+
+function getKey(){ try { return localStorage.getItem("lf_key") || ""; } catch { return ""; } }
+function setKey(k){ try { localStorage.setItem("lf_key", k); } catch {} }
+async function api(method, body, id){
+  const res = await fetch(API + (id ? "?id=" + encodeURIComponent(id) : ""), {
+    method, headers: {"content-type":"application/json","x-access-key": getKey()},
+    body: body ? JSON.stringify(body) : undefined });
+  if (res.status === 401) { askKey(true); throw new Error("unauthorized"); }
+  const data = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+function askKey(bad){
+  openModal(`<h2>Access key</h2><p style="color:var(--muted)">${bad?"That key didn't work. ":""}Enter the ACCESS_KEY you set in Netlify. It's saved on this device only.</p>
+  <input class="field" id="keyIn" type="password" value="${esc(getKey())}" autocomplete="off">
+  <div class="actions"><button class="btn primary" id="keySave">Save</button></div>`);
+  $("#keySave").onclick = () => { setKey($("#keyIn").value.trim()); closeModal(); load(); };
+}
+
+async function load(){
+  if (!getKey()) return askKey();
+  try { leads = (await api("GET")).leads || []; render(); }
+  catch(e){ if (e.message !== "unauthorized") toast("Load failed: " + e.message); }
+}
+
+function filtered(){
+  const t=$("#fType").value, p=$("#fProp").value, s=$("#fStatus").value, q=$("#fSearch").value.toLowerCase().trim();
+  let out = leads.filter(l =>
+    (!cityFilter || l.city === cityFilter) &&
+    (!t || l.leadType === t) && (!p || l.propertyType === p) &&
+    (s === "" ? true : s === "active" ? l.status !== "Dead" : l.status === s) &&
+    (!q || [l.address,l.owner,l.caseNumber,l.city,l.notes].join(" ").toLowerCase().includes(q)));
+  const big = Number.MAX_SAFE_INTEGER, sort = $("#fSort").value;
+  const by = {
+    owedAsc:(a,b)=>(a.amountOwed??big)-(b.amountOwed??big),
+    owedDesc:(a,b)=>(b.amountOwed??-1)-(a.amountOwed??-1),
+    equityDesc:(a,b)=>(equity(b)??-big)-(equity(a)??-big),
+    dateAsc:(a,b)=>String(a.keyDate||"9999").localeCompare(String(b.keyDate||"9999")),
+    newest:(a,b)=>String(b.firstSeen||"").localeCompare(String(a.firstSeen||"")),
+  }[sort];
+  return out.sort(by);
+}
+
+function cardHTML(l, compact){
+  const eq = equity(l);
+  return `<div class="card" data-id="${esc(l.id)}">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div><div class="amt">${money(l.amountOwed)}</div><div class="addr">${esc(l.address)}</div></div>
+      <span class="pill ${statusClass(l.status)}">${esc(l.status||"New")}</span>
+    </div>
+    <div class="meta"><span>${esc(l.city||"")}${l.county?" · "+esc(l.county)+" Co.":""}</span>
+      ${l.leadType?`<span class="pill ${typeClass(l.leadType)}">${esc(l.leadType)}</span>`:""}
+      ${compact?"":`<span>${esc(l.propertyType||"")}</span>`}</div>
+    ${compact?"":`<div class="meta"><span>Key date: ${fmtDate(l.keyDate)}</span><span>Value: ${money(l.estValue)}</span>
+      <span>Equity: <span class="eq ${eq<0?"neg":""}">${money(eq)}</span></span></div>`}
+  </div>`;
+}
+
+function render(){
+  // city chips
+  $("#cityChips").innerHTML = [`<span class="chip ${!cityFilter?"on":""}" data-city="">All (${leads.length})</span>`]
+    .concat(CITIES.map(c => `<span class="chip ${cityFilter===c.city?"on":""}" data-city="${c.city}">${c.city} (${leads.filter(l=>l.city===c.city).length})</span>`)).join("");
+  document.querySelectorAll("#cityChips .chip").forEach(ch => ch.onclick = () => { cityFilter = ch.dataset.city; render(); });
+
+  const rows = filtered();
+  const owed = rows.filter(r=>r.amountOwed!=null).map(r=>r.amountOwed);
+  $("#stats").innerHTML = `
+    <div class="stat"><b>${rows.length}</b><small>leads shown</small></div>
+    <div class="stat"><b>${owed.length?money(Math.min(...owed)):"—"}</b><small>lowest owed</small></div>
+    <div class="stat"><b>${rows.filter(r=>r.status==="New").length}</b><small>new</small></div>`;
+  $("#list").innerHTML = rows.length ? rows.map(l=>cardHTML(l)).join("") :
+    `<div class="empty">No leads yet.<br>Tap <b>Import</b> to paste scan results, or <b>＋ Lead</b> to add one.</div>`;
+
+  $("#board").innerHTML = STATUSES.map(s => {
+    const items = rows.filter(r => (r.status||"New") === s);
+    return `<div class="col"><h3><span>${s}</span><span style="color:var(--muted)">${items.length}</span></h3>${items.map(l=>cardHTML(l,true)).join("")}</div>`;
+  }).join("");
+
+  document.querySelectorAll(".card").forEach(c => c.onclick = () => openLead(c.dataset.id));
+  if (view === "map") drawMap(rows);
+}
+
+function drawMap(rows){
+  if (!map){
+    map = L.map("map").setView([39.3,-104.9], 7);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap"}).addTo(map);
+    markers = L.layerGroup().addTo(map);
+  }
+  setTimeout(()=>map.invalidateSize(),50);
+  markers.clearLayers();
+  const pts = [];
+  rows.filter(l=>l.lat!=null&&l.lng!=null).forEach(l => {
+    const color = l.leadType==="Pre-foreclosure"?"#ef4444":l.leadType==="Tax-delinquent"?"#f59e0b":"#a855f7";
+    const m = L.circleMarker([l.lat,l.lng],{radius:9,color:"#fff",weight:2,fillColor:color,fillOpacity:.95})
+      .bindPopup(`<b>${money(l.amountOwed)}</b><br>${esc(l.address)}<br>${esc(l.city||"")}<br><a href="#" data-open="${esc(l.id)}">Open lead</a>`);
+    m.on("popupopen", e => { const a = e.popup.getElement().querySelector("[data-open]"); if(a) a.onclick = (ev)=>{ev.preventDefault();openLead(a.dataset.open);}; });
+    markers.addLayer(m); pts.push([l.lat,l.lng]);
+  });
+  if (pts.length) map.fitBounds(pts,{padding:[30,30],maxZoom:13});
+  const missing = rows.filter(l=>l.lat==null||l.lng==null).length;
+  $("#geoMsg").textContent = missing ? `${missing} without a pin` : "";
+}
+
+async function geocodeMissing(){
+  const todo = filtered().filter(l=>(l.lat==null||l.lng==null) && l.address);
+  if (!todo.length) return toast("All leads have pins");
+  $("#geoBtn").disabled = true;
+  for (let i=0;i<todo.length;i++){
+    const l = todo[i];
+    $("#geoMsg").textContent = `Locating ${i+1}/${todo.length}…`;
+    try{
+      const q = encodeURIComponent(`${l.address}, ${l.city||""}, CO ${l.zip||""}`);
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${q}`,{headers:{"Accept":"application/json"}});
+      const d = await r.json();
+      if (d[0]) { const upd = (await api("PATCH",{lat:+d[0].lat,lng:+d[0].lon},l.id)).lead; Object.assign(l, upd); }
+    }catch(e){}
+    await new Promise(r=>setTimeout(r,1100)); // Nominatim allows ~1 request/sec
+  }
+  $("#geoBtn").disabled = false; render();
+}
+
+function openModal(html){ $("#sheet").innerHTML = html; $("#modal").classList.add("open"); }
+function closeModal(){ $("#modal").classList.remove("open"); }
+$("#modal").onclick = (e) => { if (e.target.id === "modal") closeModal(); };
+
+function openLead(id){
+  const l = leads.find(x=>x.id===id); if(!l) return;
+  const eq = equity(l);
+  openModal(`
+    <div style="display:flex;justify-content:space-between;gap:8px"><div>
+      <h2>${esc(l.address)}</h2><div style="color:var(--muted)">${esc(l.city||"")}, CO ${esc(l.zip||"")} · ${esc(l.county||"")} County</div></div>
+      <button class="btn small" id="x">✕</button></div>
+    <div class="kv">
+      <div>Amount owed</div><div><b style="color:var(--accent)">${money(l.amountOwed)}</b></div>
+      ${l.taxOwed!=null?`<div>Taxes owed</div><div>${money(l.taxOwed)}</div>`:""}
+      <div>Est. value</div><div>${money(l.estValue)}</div>
+      <div>Equity est.</div><div class="eq ${eq<0?"neg":""}">${money(eq)}</div>
+      <div>Lead type</div><div>${esc(l.leadType||"—")}</div>
+      <div>Property</div><div>${esc(l.propertyType||"—")}</div>
+      <div>Sale / key date</div><div>${fmtDate(l.keyDate)}</div>
+      <div>Owner (public)</div><div>${esc(l.owner||"—")}</div>
+      <div>Owner mailing</div><div>${esc(l.ownerMailing||"—")}</div>
+      ${l.lender?`<div>Lender</div><div>${esc(l.lender)}</div>`:""}
+      <div>Case / sale #</div><div>${esc(l.caseNumber||"—")}</div>
+      <div>Source</div><div>${l.sourceUrl?`<a href="${esc(l.sourceUrl)}" target="_blank" rel="noopener noreferrer">County record ↗</a>`:"—"}</div>
+      <div>First seen</div><div>${fmtDate(l.firstSeen)}</div>
+    </div>
+    <label>Status</label>
+    <select class="field" id="stat">${STATUSES.map(s=>`<option ${s===(l.status||"New")?"selected":""}>${s}</option>`).join("")}</select>
+    <label>Notes</label>
+    <textarea class="field" id="notes">${esc(l.notes||"")}</textarea>
+    <div class="actions">
+      <button class="btn primary" id="save">Save</button>
+      <button class="btn" id="letter">✉️ Letter</button>
+      <button class="btn" id="script">🚪 Door script</button>
+      <a class="btn" style="text-decoration:none" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.address+", "+(l.city||"")+", CO")}">🗺️ Maps</a>
+      <button class="btn" id="del" style="margin-left:auto;color:#fca5a5">Delete</button>
+    </div>
+    <div id="out"></div>`);
+  $("#x").onclick = closeModal;
+  $("#save").onclick = async () => {
+    try { const upd = (await api("PATCH",{status:$("#stat").value,notes:$("#notes").value},id)).lead; Object.assign(l,upd); render(); toast("Saved"); closeModal(); }
+    catch(e){ toast("Save failed: "+e.message); }
+  };
+  $("#del").onclick = async () => {
+    if (!confirm("Delete this lead from the app?")) return;
+    try { await api("DELETE",null,id); leads = leads.filter(x=>x.id!==id); render(); closeModal(); toast("Deleted"); }
+    catch(e){ toast("Delete failed: "+e.message); }
+  };
+  $("#letter").onclick = () => showOut(letterText(l), true);
+  $("#script").onclick = () => showOut(scriptText(l), false);
+}
+
+function showOut(text, isLetter){
+  $("#out").innerHTML = `<div class="letter" id="txt" contenteditable="true">${esc(text)}</div>
+    <div class="actions"><button class="btn small" id="copy">Copy</button>${isLetter?`<button class="btn small" id="print">Print</button>`:""}</div>
+    <div class="warn"><b>Before you send or knock:</b> if the home is in foreclosure, Colorado's Foreclosure Protection Act (C.R.S. 6-1-1101 and after) can apply to buying it. It requires a written contract with required notices, gives the owner a right to cancel, and bans misleading statements. Have a real estate attorney review your contract and letter before your first deal.</div>`;
+  $("#copy").onclick = () => { navigator.clipboard?.writeText($("#txt").innerText).then(()=>toast("Copied")); };
+  const p = $("#print"); if (p) p.onclick = () => { const w = window.open("","_blank"); w.document.write(`<pre style="font:15px/1.6 Georgia,serif;white-space:pre-wrap;max-width:650px;margin:60px auto">${esc($("#txt").innerText)}</pre>`); w.document.close(); w.print(); };
+}
+
+function ownerFirst(l){
+  const o = String(l.owner||"").trim();
+  if (!o || /llc|inc|trust|corp|estate|bank/i.test(o)) return "Homeowner";
+  const parts = o.includes(",") ? o.split(",")[1].trim().split(/\s+/) : o.split(/\s+/);
+  const n = parts[0] || "Homeowner";
+  return n.charAt(0).toUpperCase() + n.slice(1).toLowerCase();
+}
+function letterText(l){
+  const pre = l.leadType === "Pre-foreclosure" || l.leadType === "Both";
+  const today = new Date().toLocaleDateString(undefined,{month:"long",day:"numeric",year:"numeric"});
+  return `${today}
+
+Dear ${ownerFirst(l)},
+
+My name is Terel, and I'm a local real estate investor here in Colorado. I'm reaching out about your property at ${l.address}${l.city?", "+l.city:""}.
+
+${pre
+ ? "Public records show a foreclosure notice was filed on this property. I know that can be a stressful situation, and I'm not writing to pressure you. You have options, including working with your lender, refinancing, selling on the open market, or selling directly to a buyer like me."
+ : "Public records show there are past-due property taxes on this property. If owning it has become more of a burden than it's worth, I'd be glad to talk about a simple, direct sale. If not, no problem at all."}
+
+If a direct sale makes sense for you, I can:
+  • Buy the property as-is, with no repairs or cleaning
+  • Pay closing costs and work with your timeline
+  • Put every term in writing so you can review it with anyone you trust
+
+${pre ? "Free, independent help is also available from the Colorado Foreclosure Hotline at 1-877-601-HOPE (4673) and HUD-approved housing counselors. I encourage you to talk with them or an attorney before deciding anything.\n\n" : ""}If you'd like to talk, call or text me at [YOUR PHONE] or email [YOUR EMAIL]. If you're not interested, I won't keep contacting you.
+
+Respectfully,
+
+Terel
+[YOUR COMPANY / LLC]
+[YOUR PHONE]`;
+}
+function scriptText(l){
+  const pre = l.leadType === "Pre-foreclosure" || l.leadType === "Both";
+  return `DOOR SCRIPT: ${l.address}
+
+"Hi, are you ${ownerFirst(l)==="Homeowner"?"the owner of the home":ownerFirst(l)}? My name is Terel. I'm a local investor, and I buy houses directly from owners here in ${l.city||"the area"}.
+
+${pre?"I saw a public notice about this property and wanted to introduce myself in person, with no pressure at all.":"I saw this property on a public tax list and wanted to introduce myself in person, with no pressure at all."}
+
+If you've ever thought about selling, I can buy as-is and work on your timeline. Would that be something worth a quick conversation?"
+
+IF YES: "Great. What would you need to walk away with for it to make sense for you?" Get their timeline, condition, what's owed, and who's on title. Leave your card.
+IF NO: "Totally understand. Here's my card in case anything changes. Have a good day."
+
+DON'T: promise to "save" the house, guess at what they'll get after a foreclosure, or ask them to sign anything at the door.${pre?"\nIF THEY'RE OPEN TO IT: mention the free Colorado Foreclosure Hotline, 1-877-601-HOPE (4673).":""}`;
+}
+
+// ---------- Import / Add / Export ----------
+const HEAD_MAP = {"amount owed":"amountOwed","amountowed":"amountOwed","address":"address","city":"city","county":"county","zip":"zip",
+ "lead type":"leadType","leadtype":"leadType","sale / key date":"keyDate","key date":"keyDate","sale date":"keyDate","keydate":"keyDate",
+ "status":"status","est. value":"estValue","est value":"estValue","estvalue":"estValue","property type":"propertyType","propertytype":"propertyType",
+ "owner":"owner","owner (public record)":"owner","owner mailing address":"ownerMailing","ownermailing":"ownerMailing",
+ "case / sale #":"caseNumber","case #":"caseNumber","casenumber":"caseNumber","source link":"sourceUrl","sourceurl":"sourceUrl",
+ "notes":"notes","lat":"lat","lng":"lng","lender":"lender","tax owed":"taxOwed","taxowed":"taxOwed"};
+function parseCSV(text){
+  const rows=[]; let row=[], cur="", q=false;
+  for (let i=0;i<text.length;i++){ const c=text[i];
+    if(q){ if(c==='"'&&text[i+1]==='"'){cur+='"';i++;} else if(c==='"') q=false; else cur+=c; }
+    else if(c==='"') q=true; else if(c===','){row.push(cur);cur="";}
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&text[i+1]==='\n') i++; row.push(cur); rows.push(row); row=[]; cur=""; }
+    else cur+=c; }
+  if(cur||row.length){row.push(cur);rows.push(row);}
+  const head = (rows.shift()||[]).map(h=>HEAD_MAP[h.trim().toLowerCase()]||h.trim());
+  return rows.filter(r=>r.some(x=>x.trim())).map(r=>Object.fromEntries(head.map((h,i)=>[h,(r[i]??"").trim()])));
+}
+$("#importBtn").onclick = () => {
+  openModal(`<h2>Import leads</h2>
+  <p style="color:var(--muted);font-size:14px">Paste scan results as JSON (<code>{"leads":[…]}</code> or <code>[…]</code>) or CSV with a header row. Existing leads update; your status and notes are kept.</p>
+  <textarea class="field" id="imp" style="min-height:220px" placeholder='[{"address":"123 Main St","city":"Pueblo","county":"Pueblo","amountOwed":84000,"leadType":"Pre-foreclosure","keyDate":"2027-01-13","caseNumber":"2026-0123"}]'></textarea>
+  <div class="actions"><button class="btn primary" id="impGo">Import</button><button class="btn" id="impX">Cancel</button></div>`);
+  $("#impX").onclick = closeModal;
+  $("#impGo").onclick = async () => {
+    const t = $("#imp").value.trim(); if(!t) return;
+    let items;
+    try { const j = JSON.parse(t); items = Array.isArray(j) ? j : j.leads; }
+    catch { items = parseCSV(t); }
+    if (!Array.isArray(items) || !items.length) return toast("Nothing to import");
+    try { const r = await api("POST",{leads:items}); toast(`Added ${r.added}, updated ${r.updated}`); closeModal(); load(); }
+    catch(e){ toast("Import failed: "+e.message); }
+  };
+};
+$("#addBtn").onclick = () => {
+  openModal(`<h2>Add a lead</h2>
+  <label>Address *</label><input class="field" id="a_address">
+  <div class="grid2"><div><label>City</label><select class="field" id="a_city">${CITIES.map(c=>`<option>${c.city}</option>`).join("")}</select></div>
+  <div><label>ZIP</label><input class="field" id="a_zip" inputmode="numeric"></div></div>
+  <div class="grid2"><div><label>Amount owed</label><input class="field" id="a_amountOwed" inputmode="decimal"></div>
+  <div><label>Est. value</label><input class="field" id="a_estValue" inputmode="decimal"></div></div>
+  <div class="grid2"><div><label>Lead type</label><select class="field" id="a_leadType"><option>Pre-foreclosure</option><option>Tax-delinquent</option><option>Both</option></select></div>
+  <div><label>Property type</label><select class="field" id="a_propertyType"><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select></div></div>
+  <div class="grid2"><div><label>Sale / key date</label><input class="field" type="date" id="a_keyDate"></div>
+  <div><label>Case / sale #</label><input class="field" id="a_caseNumber"></div></div>
+  <label>Owner (public record)</label><input class="field" id="a_owner">
+  <label>Owner mailing address</label><input class="field" id="a_ownerMailing">
+  <label>Source link</label><input class="field" id="a_sourceUrl" type="url">
+  <label>Notes</label><textarea class="field" id="a_notes"></textarea>
+  <div class="actions"><button class="btn primary" id="aGo">Add lead</button><button class="btn" id="aX">Cancel</button></div>`);
+  $("#aX").onclick = closeModal;
+  $("#aGo").onclick = async () => {
+    const f = ["address","city","zip","amountOwed","estValue","leadType","propertyType","keyDate","caseNumber","owner","ownerMailing","sourceUrl","notes"];
+    const lead = Object.fromEntries(f.map(k=>[k,$("#a_"+k).value.trim()]));
+    if (!lead.address) return toast("Address is required");
+    lead.county = CITIES.find(c=>c.city===lead.city)?.county || "";
+    try { await api("POST",{leads:[lead]}); toast("Lead added"); closeModal(); load(); }
+    catch(e){ toast("Add failed: "+e.message); }
+  };
+};
+$("#exportBtn").onclick = () => {
+  const cols = ["amountOwed","address","city","county","zip","leadType","keyDate","status","estValue","propertyType","owner","ownerMailing","caseNumber","sourceUrl","firstSeen","notes"];
+  const csv = [cols.join(",")].concat(filtered().map(l=>cols.map(c=>`"${String(l[c]??"").replace(/"/g,'""')}"`).join(","))).join("\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+  a.download = `leads-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+};
+$("#keyBtn").onclick = () => askKey(false);
+$("#geoBtn").onclick = geocodeMissing;
+
+document.querySelectorAll(".tab").forEach(t => t.onclick = () => {
+  document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on", x===t));
+  view = t.dataset.view;
+  ["list","map","board"].forEach(v => $("#view-"+v).hidden = v !== view);
+  render();
+});
+["#fType","#fProp","#fStatus","#fSort"].forEach(s => $(s).onchange = render);
+$("#fSearch").oninput = render;
+load();
+</script>
+</body>
+</html>
