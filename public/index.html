@@ -130,6 +130,20 @@ textarea.field{min-height:90px;resize:vertical}
 .toast{position:fixed;left:50%;bottom:calc(var(--nav) + 16px);transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 14px;border-radius:10px;z-index:70;display:none;align-items:center;gap:12px;font-size:14px;box-shadow:0 4px 14px #0005}
 .toast button{border:0;background:none;color:#8cc4ff;font-weight:800;cursor:pointer}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* counties */
+.ctiles{display:grid;gap:12px;padding:6px 14px}
+@media(min-width:700px){.ctiles{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1100px){.ctiles{grid-template-columns:repeat(3,1fr)}}
+.ctile{background:#fff;border-radius:12px;box-shadow:0 1px 3px #0000001f;padding:14px;cursor:pointer}
+.ctile.empty{opacity:.6}
+.ctile h3{margin:0;font-size:17px;display:flex;justify-content:space-between;align-items:center}
+.ctile .stats{display:flex;gap:14px;margin-top:8px;font-size:13px;color:var(--ink2)}
+.ctile .stats b{display:block;font-size:18px;color:var(--ink)}
+.zips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.zip{font-size:12px;font-weight:700;padding:4px 9px;border-radius:999px;background:#eef5ff;color:var(--blue);border:0;cursor:pointer}
+.hwy{font-size:11px;font-weight:800;color:var(--muted)}
+.crumb{display:flex;align-items:center;gap:8px;padding:8px 14px 0;font-size:13px}
+.crumb button{border:0;background:#eef5ff;color:var(--blue);font-weight:700;border-radius:999px;padding:4px 10px;cursor:pointer}
 /* accuracy + owner */
 .conf{font-size:11px;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap;text-transform:uppercase;letter-spacing:.3px}
 .c-high{background:#e7f6ec;color:var(--green)}.c-med{background:#fff4d6;color:#8a5a00}.c-low{background:#fde8e8;color:var(--red)}.c-none{background:#f1f1f3;color:#767680}
@@ -166,6 +180,7 @@ textarea.field{min-height:90px;resize:vertical}
   <div class="filters">
     <select class="fbtn" id="fCounty"><option value="">All counties</option></select>
     <select class="fbtn" id="fCity"><option value="">All cities</option></select>
+    <select class="fbtn" id="fZip"><option value="">All ZIPs</option></select>
     <select class="fbtn" id="fType"><option value="">Lead type</option><option>Pre-foreclosure</option><option>Tax-delinquent</option><option>Both</option></select>
     <select class="fbtn" id="fMax"><option value="">Max owed</option><option value="100000">Under $100K</option><option value="150000">Under $150K</option><option value="200000">Under $200K</option><option value="300000">Under $300K</option><option value="400000">Under $400K</option></select>
     <select class="fbtn" id="fProp"><option value="">Home type</option><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select>
@@ -177,6 +192,7 @@ textarea.field{min-height:90px;resize:vertical}
 <main>
   <!-- NEW FEED -->
   <section class="view on" id="v-new">
+    <div class="crumb" id="crumbNew"></div>
     <div class="head"><h1 id="newTitle">New leads</h1><span class="sub">Within 40 mi of I-25 &amp; I-70 · Save, pass, or mark contacted to clear them</span></div>
     <div class="grid feed" id="newGrid"></div>
   </section>
@@ -186,6 +202,7 @@ textarea.field{min-height:90px;resize:vertical}
     <div class="split" id="split">
       <div id="map"></div>
       <div class="listpane">
+        <div class="crumb" id="crumbSearch"></div>
         <div class="head"><h1>Distressed homes</h1><span class="sub" id="searchCount"></span></div>
         <div class="grid" id="searchGrid"></div>
       </div>
@@ -194,6 +211,11 @@ textarea.field{min-height:90px;resize:vertical}
   </section>
 
   <!-- PIPELINE -->
+  <section class="view" id="v-counties">
+    <div class="head"><h1>Counties</h1><span class="sub">Along I-25 &amp; I-70 · tap a county or ZIP to see its houses</span></div>
+    <div class="ctiles" id="ctiles"></div>
+  </section>
+
   <section class="view" id="v-pipe">
     <div class="head"><h1>Pipeline</h1><span class="sub">Tap a lead to change its stage</span></div>
     <div class="board" id="board"></div>
@@ -202,6 +224,7 @@ textarea.field{min-height:90px;resize:vertical}
 
 <nav class="nav">
   <button data-v="new" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>New<span class="badge" id="newBadge" hidden></span></button>
+  <button data-v="counties"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>Counties</button>
   <button data-v="search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Search</button>
   <button data-v="pipe"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="5" height="16" rx="1"/><rect x="10" y="4" width="5" height="11" rx="1"/><rect x="17" y="4" width="4" height="7" rx="1"/></svg>Pipeline</button>
   <button id="navAdd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>Add</button>
@@ -275,11 +298,11 @@ const heartSVG = on => `<svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.
 
 /* ---------- filtering ---------- */
 function filtered(opts = {}){
-  const q = $("#q").value.toLowerCase().trim(), city = $("#fCity").value, county = $("#fCounty").value, t = $("#fType").value,
+  const q = $("#q").value.toLowerCase().trim(), city = place.city, county = place.county, zip = place.zip, t = $("#fType").value,
     max = +$("#fMax").value || 0, p = $("#fProp").value, s = opts.status ?? $("#fStatus").value, sort = $("#fSort").value;
   const big = Number.MAX_SAFE_INTEGER;
   return leads.filter(l => inCorridor(l) &&
-    (!city || l.city === city) && (!county || countyOf(l) === county) && (!t || l.leadType === t) && (!p || l.propertyType === p) &&
+    (!city || l.city === city) && (!county || countyOf(l) === county) && (!zip || String(l.zip || "") === zip) && (!t || l.leadType === t) && (!p || l.propertyType === p) &&
     (!max || (l.amountOwed != null && l.amountOwed <= max)) &&
     (s === "" ? true : s === "active" ? l.status !== "Dead" : s === "saved" ? l.saved : l.status === s) &&
     (!q || [l.address,l.city,l.zip,l.owner,l.caseNumber,l.lender,l.notes].join(" ").toLowerCase().includes(q))
@@ -359,22 +382,54 @@ function corridorInfo(l){
 const inCorridor = l => corridorInfo(l).inside;
 /* ---------- render ---------- */
 const countyOf = l => l.county || CITY_COUNTY[l.city] || "";
+let place = (() => { try { return JSON.parse(localStorage.getItem("lf_place")) || {}; } catch { return {}; } })();
+place = {county: place.county || "", city: place.city || "", zip: place.zip || ""};
+function setPlace(p){ place = {county:"", city:"", zip:"", ...p}; try { localStorage.setItem("lf_place", JSON.stringify(place)); } catch {} drawMap.fitted = false; render(); }
+const count = (arr) => arr.reduce((m, k) => (k && (m[k] = (m[k] || 0) + 1), m), {});
 function fillPlaceFilters(){
-  const cSel = $("#fCounty"), tSel = $("#fCity"), curC = cSel.value, curT = tSel.value;
-  const count = (arr) => arr.reduce((m, k) => (k && (m[k] = (m[k] || 0) + 1), m), {});
   const area = leads.filter(inCorridor);
+  const opt = (v, label) => `<option value="${esc(v)}">${esc(label)}</option>`;
   const byC = count(area.map(countyOf));
-  cSel.innerHTML = `<option value="">All counties</option>` + Object.keys(byC).sort().map(c => `<option value="${esc(c)}">${esc(c)} County (${byC[c]})</option>`).join("");
-  cSel.value = byC[curC] ? curC : "";
-  const inC = area.filter(l => !cSel.value || countyOf(l) === cSel.value);
+  if (place.county && !byC[place.county]) byC[place.county] = 0;
+  $("#fCounty").innerHTML = opt("", "All counties") + Object.keys(byC).sort().map(c => opt(c, `${c} County (${byC[c]})`)).join("");
+  $("#fCounty").value = place.county;
+  const inC = area.filter(l => !place.county || countyOf(l) === place.county);
   const byT = count(inC.map(l => l.city));
-  tSel.innerHTML = `<option value="">All cities</option>` + Object.keys(byT).sort().map(c => `<option value="${esc(c)}">${esc(c)} (${byT[c]})</option>`).join("");
-  tSel.value = byT[curT] ? curT : "";
+  $("#fCity").innerHTML = opt("", "All cities") + Object.keys(byT).sort().map(c => opt(c, `${c} (${byT[c]})`)).join("");
+  $("#fCity").value = byT[place.city] ? place.city : "";
+  const inT = inC.filter(l => !place.city || l.city === place.city);
+  const byZ = count(inT.map(l => l.zip ? String(l.zip) : ""));
+  $("#fZip").innerHTML = opt("", "All ZIPs") + Object.keys(byZ).sort().map(z => opt(z, `${z} (${byZ[z]})`)).join("");
+  $("#fZip").value = byZ[place.zip] ? place.zip : "";
+  const label = [place.zip && "ZIP " + place.zip, place.city, place.county && place.county + " County"].filter(Boolean).join(" · ");
+  const crumb = label ? `<span>Showing <b>${esc(label)}</b></span><button data-clear>✕ All areas</button>` : "";
+  ["#crumbNew","#crumbSearch"].forEach(id => { $(id).innerHTML = crumb; const b = $(id).querySelector("[data-clear]"); if (b) b.onclick = () => setPlace({}); });
+}
+function renderCounties(){
+  const area = leads.filter(inCorridor);
+  const names = [...new Set([...CORRIDOR_COUNTIES, ...area.map(countyOf).filter(Boolean)])];
+  const I25 = new Set(["Larimer","Weld","Boulder","Broomfield","Adams","Denver","Jefferson","Arapahoe","Douglas","Elbert","El Paso","Teller","Pueblo","Fremont","Huerfano","Las Animas","Custer"]);
+  const rows = names.map(c => {
+    const ls = area.filter(l => countyOf(l) === c && l.status !== "Dead");
+    const owed = ls.map(l => l.amountOwed).filter(v => v != null);
+    return {c, ls, n: ls.length, fresh: ls.filter(l => (l.status || "New") === "New").length, low: owed.length ? Math.min(...owed) : null,
+      zips: Object.entries(count(ls.map(l => l.zip ? String(l.zip) : ""))).sort((a,b) => b[1]-a[1]).slice(0, 10)};
+  }).sort((a,b) => b.n - a.n || a.c.localeCompare(b.c));
+  $("#ctiles").innerHTML = rows.map(r => `<div class="ctile ${r.n ? "" : "empty"}" data-c="${esc(r.c)}">
+      <h3><span>${esc(r.c)} County</span><span class="hwy">${I25.has(r.c) ? "I-25" : ""}${I25.has(r.c) && ["Denver","Adams","Arapahoe","Jefferson","Elbert"].includes(r.c) ? " · " : ""}${["Mesa","Garfield","Eagle","Summit","Clear Creek","Gilpin","Jefferson","Denver","Adams","Arapahoe","Elbert","Lincoln","Kit Carson","Pitkin","Lake","Grand","Delta"].includes(r.c) ? "I-70" : ""}</span></h3>
+      <div class="stats"><div><b>${r.n}</b>houses</div><div><b>${r.fresh}</b>new</div><div><b>${r.low != null ? short(r.low) : "—"}</b>lowest owed</div></div>
+      ${r.n ? `<div class="zips">${r.zips.map(([z, n]) => `<button class="zip" data-z="${esc(z)}">${esc(z)} · ${n}</button>`).join("")}</div>` : `<div style="font-size:12px;color:var(--muted);margin-top:8px">No leads yet. Next scan will check this county.</div>`}
+    </div>`).join("");
+  $("#ctiles").querySelectorAll(".ctile").forEach(t => t.onclick = e => {
+    const z = e.target.closest("[data-z]");
+    setPlace({county: t.dataset.c, zip: z ? z.dataset.z : ""}); goView("search");
+  });
 }
 function render(){
   fillPlaceFilters();
+  if (view === "counties") renderCounties();
   // filter button highlight
-  ["#fCounty","#fCity","#fType","#fMax","#fProp"].forEach(s => $(s).classList.toggle("on", !!$(s).value));
+  ["#fCounty","#fCity","#fZip","#fType","#fMax","#fProp"].forEach(s => $(s).classList.toggle("on", !!$(s).value));
   $("#fStatus").classList.toggle("on", $("#fStatus").value !== "active");
 
   // New feed
@@ -844,17 +899,21 @@ $("#navAdd").onclick = () => {
 };
 
 /* ---------- nav + filters ---------- */
-document.querySelectorAll(".nav button[data-v]").forEach(b => b.onclick = () => {
-  view = b.dataset.v;
-  document.querySelectorAll(".nav button[data-v]").forEach(x => x.classList.toggle("on", x === b));
-  document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === "v-" + view));
+function goView(v){
+  view = v;
+  document.querySelectorAll(".nav button[data-v]").forEach(x => x.classList.toggle("on", x.dataset.v === v));
+  document.querySelectorAll(".view").forEach(el => el.classList.toggle("on", el.id === "v-" + v));
   window.scrollTo(0, 0); render();
-});
+}
+document.querySelectorAll(".nav button[data-v]").forEach(b => b.onclick = () => goView(b.dataset.v));
 $("#mapToggle").onclick = () => {
   mapMode = !mapMode; $("#split").classList.toggle("mapmode", mapMode);
   $("#mapToggle").textContent = mapMode ? "☰ List" : "🗺 Map"; if (mapMode) drawMap(filtered());
 };
-["#fCounty","#fCity","#fType","#fMax","#fProp","#fStatus","#fSort"].forEach(s => $(s).onchange = () => { drawMap.fitted = false; render(); });
+$("#fCounty").onchange = () => setPlace({county: $("#fCounty").value});
+$("#fCity").onchange = () => setPlace({county: place.county, city: $("#fCity").value});
+$("#fZip").onchange = () => setPlace({county: place.county, city: place.city, zip: $("#fZip").value});
+["#fType","#fMax","#fProp","#fStatus","#fSort"].forEach(s => $(s).onchange = () => { drawMap.fitted = false; render(); });
 let qT; $("#q").oninput = () => { clearTimeout(qT); qT = setTimeout(() => { drawMap.fitted = false; render(); }, 150); };
 load();
 </script>
