@@ -177,7 +177,7 @@ textarea.field{min-height:90px;resize:vertical}
 <main>
   <!-- NEW FEED -->
   <section class="view on" id="v-new">
-    <div class="head"><h1 id="newTitle">New leads</h1><span class="sub">Save, pass, or mark contacted to clear them</span></div>
+    <div class="head"><h1 id="newTitle">New leads</h1><span class="sub">Within 40 mi of I-25 &amp; I-70 · Save, pass, or mark contacted to clear them</span></div>
     <div class="grid feed" id="newGrid"></div>
   </section>
 
@@ -278,7 +278,7 @@ function filtered(opts = {}){
   const q = $("#q").value.toLowerCase().trim(), city = $("#fCity").value, county = $("#fCounty").value, t = $("#fType").value,
     max = +$("#fMax").value || 0, p = $("#fProp").value, s = opts.status ?? $("#fStatus").value, sort = $("#fSort").value;
   const big = Number.MAX_SAFE_INTEGER;
-  return leads.filter(l =>
+  return leads.filter(l => inCorridor(l) &&
     (!city || l.city === city) && (!county || countyOf(l) === county) && (!t || l.leadType === t) && (!p || l.propertyType === p) &&
     (!max || (l.amountOwed != null && l.amountOwed <= max)) &&
     (s === "" ? true : s === "active" ? l.status !== "Dead" : s === "saved" ? l.saved : l.status === s) &&
@@ -334,15 +334,39 @@ function bindCards(root){
   });
 }
 
+
+/* ---------- coverage area: within 40 miles of I-25 and I-70 in Colorado ---------- */
+const CORRIDOR_MILES = 40;
+const HIGHWAYS = {
+  "I-25": [[40.998,-104.94],[40.58,-104.99],[40.40,-104.99],[40.16,-104.98],[39.90,-104.99],[39.75,-105.00],[39.62,-104.90],[39.37,-104.86],[39.09,-104.86],[38.83,-104.82],[38.68,-104.70],[38.27,-104.62],[37.62,-104.78],[37.17,-104.51],[36.99,-104.47]],
+  "I-70": [[39.13,-109.05],[39.09,-108.55],[39.53,-107.78],[39.55,-107.32],[39.64,-106.37],[39.58,-106.10],[39.68,-105.92],[39.74,-105.51],[39.72,-105.20],[39.78,-104.99],[39.76,-104.80],[39.27,-103.69],[39.30,-102.27],[39.30,-102.05]],
+};
+// Used only until a lead has map coordinates.
+const CORRIDOR_COUNTIES = new Set(["Larimer","Weld","Boulder","Broomfield","Adams","Denver","Jefferson","Arapahoe","Douglas","Elbert","El Paso","Teller","Pueblo","Fremont","Huerfano","Las Animas","Custer","Gilpin","Clear Creek","Park","Mesa","Garfield","Eagle","Summit","Lincoln","Kit Carson","Pitkin","Lake","Grand","Delta"]);
+function milesToSegment(p, a, b){
+  const k = Math.cos(p[0] * Math.PI / 180), toXY = q => [q[1] * 69.17 * k, q[0] * 69.0];
+  const [px,py] = toXY(p), [ax,ay] = toXY(a), [bx,by] = toXY(b);
+  const dx = bx-ax, dy = by-ay, t = Math.max(0, Math.min(1, ((px-ax)*dx + (py-ay)*dy) / (dx*dx + dy*dy || 1)));
+  return Math.hypot(px - (ax + t*dx), py - (ay + t*dy));
+}
+function corridorInfo(l){
+  if (l.lat == null || l.lng == null) return {inside: CORRIDOR_COUNTIES.has(countyOf(l)), miles: null, hwy: null};
+  let best = {miles: Infinity, hwy: null};
+  for (const [hwy, pts] of Object.entries(HIGHWAYS))
+    for (let i = 0; i < pts.length - 1; i++) { const m = milesToSegment([l.lat, l.lng], pts[i], pts[i+1]); if (m < best.miles) best = {miles: m, hwy}; }
+  return {inside: best.miles <= CORRIDOR_MILES, ...best};
+}
+const inCorridor = l => corridorInfo(l).inside;
 /* ---------- render ---------- */
 const countyOf = l => l.county || CITY_COUNTY[l.city] || "";
 function fillPlaceFilters(){
   const cSel = $("#fCounty"), tSel = $("#fCity"), curC = cSel.value, curT = tSel.value;
   const count = (arr) => arr.reduce((m, k) => (k && (m[k] = (m[k] || 0) + 1), m), {});
-  const byC = count(leads.map(countyOf));
+  const area = leads.filter(inCorridor);
+  const byC = count(area.map(countyOf));
   cSel.innerHTML = `<option value="">All counties</option>` + Object.keys(byC).sort().map(c => `<option value="${esc(c)}">${esc(c)} County (${byC[c]})</option>`).join("");
   cSel.value = byC[curC] ? curC : "";
-  const inC = leads.filter(l => !cSel.value || countyOf(l) === cSel.value);
+  const inC = area.filter(l => !cSel.value || countyOf(l) === cSel.value);
   const byT = count(inC.map(l => l.city));
   tSel.innerHTML = `<option value="">All cities</option>` + Object.keys(byT).sort().map(c => `<option value="${esc(c)}">${esc(c)} (${byT[c]})</option>`).join("");
   tSel.value = byT[curT] ? curT : "";
@@ -355,7 +379,7 @@ function render(){
 
   // New feed
   const fresh = filtered({status:"New"});
-  const allNew = leads.filter(l => (l.status || "New") === "New").length;
+  const allNew = leads.filter(l => inCorridor(l) && (l.status || "New") === "New").length;
   $("#newTitle").textContent = `${fresh.length} new lead${fresh.length === 1 ? "" : "s"}`;
   const b = $("#newBadge"); b.hidden = !allNew; b.textContent = allNew;
   $("#newGrid").innerHTML = fresh.length ? fresh.map(l => cardHTML(l, "feed")).join("") :
@@ -477,7 +501,8 @@ function openLead(id){
       <div class="daddr" style="font-size:19px;font-weight:800">${esc(fullAddr(l))}</div>
       <div class="chips"><span class="chip" style="color:${typeColor(l.leadType)}">● ${esc(l.leadType || "Lead")}</span>
         ${l.propertyType ? `<span class="chip">${esc(l.propertyType)}</span>` : ""}
-        <span class="chip">${esc(county)} County</span></div>
+        <span class="chip">${esc(county)} County</span>
+        ${(() => { const c = corridorInfo(l); return c.miles != null ? `<span class="chip">${Math.round(c.miles)} mi from ${c.hwy}</span>` : ""; })()}</div>
       <div class="btns" style="margin-top:4px">
         <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr(l))}">🗺 Map & directions</a>
         <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.zillow.com/homes/${encodeURIComponent(fullAddr(l))}_rb/">Zillow ↗</a>
