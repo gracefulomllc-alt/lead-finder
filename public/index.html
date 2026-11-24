@@ -214,6 +214,7 @@ textarea.field{min-height:90px;resize:vertical}
 const CITY_COUNTY = {"Arvada":"Jefferson","Loveland":"Larimer","Pueblo":"Pueblo","Colorado Springs":"El Paso"};
 const STATUSES = ["New","Reviewed","Contacted","Offer Made","Dead"];
 let leads = [], view = "new", svKey = "", map, pinLayer, mapMode = false;
+let settings = {senderName:"Leslie", company:"Graceful OM LLC", phone:"", email:"", addressLine1:"", city:"", state:"CO", zip:""}, mailInfo = {enabled:false, mode:null};
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money = n => (n == null || n === "" || isNaN(n)) ? "—" : "$" + Math.round(n).toLocaleString();
@@ -237,8 +238,10 @@ async function api(method, body, id, path = "/api/leads"){
 }
 async function load(){
   try {
-    const [d, cfg] = await Promise.all([api("GET"), api("GET", null, null, "/api/config").catch(() => ({}))]);
+    const [d, cfg, st, mi] = await Promise.all([api("GET"), api("GET", null, null, "/api/config").catch(() => ({})),
+      api("GET", null, null, "/api/settings").catch(() => null), api("GET", null, null, "/api/mail").catch(() => null)]);
     leads = d.leads || []; svKey = cfg.streetViewKey || "";
+    if (st?.settings) settings = st.settings; if (mi) mailInfo = mi;
     render(); geocodeQueue();
   } catch (e) { if (e.message !== "unauthorized") toast("Couldn't load leads: " + e.message); }
 }
@@ -469,6 +472,8 @@ function openLead(id){
       <div class="owner">
         <div class="nm">${esc(l.owner || "Owner not on file")}</div>
         <div class="line">Mailing address: <b>${esc(l.ownerMailing || "Not on file")}</b></div>
+        <div class="line">Phone: ${l.phone ? `<a href="tel:${esc(l.phone.replace(/[^0-9+]/g,""))}"><b>${esc(l.phone)}</b></a>` : `<b>None yet</b>, add one below if the owner gives it to you`}</div>
+        ${l.lastLetter ? `<div class="line">Last letter: <b>${esc(l.lastLetter)}</b></div>` : ""}
         ${abs === true ? `<span class="flag f-abs">Absentee owner: mail goes somewhere else</span>` : abs === false ? `<span class="flag f-occ">Owner gets mail at the property</span>` : ""}
         ${l.lender ? `<div class="line">Lender: <b>${esc(l.lender)}</b></div>` : ""}
         ${l.caseNumber ? `<div class="line">Case / sale #: <b>${esc(l.caseNumber)}</b></div>` : ""}
@@ -504,6 +509,10 @@ function openLead(id){
         <div><label>Est. value</label><input class="field" id="eVal" inputmode="decimal" value="${l.estValue ?? ""}" placeholder="$">
           ${sel("eValSrc", VALUE_SRC, l.estValueSource, {"comps":"Comps / appraisal","assessor":"County Assessor","online":"Zillow / Redfin","manual":"My guess"})}</div>
       </div>
+      <div class="grid2">
+        <div><label>Owner phone</label><input class="field" id="ePhone" type="tel" value="${esc(l.phone || "")}" placeholder="Only if they gave it to you"></div>
+        <div><label>Owner mailing address</label><input class="field" id="eMail" value="${esc(l.ownerMailing || "")}" placeholder="Street, City, ST 12345"></div>
+      </div>
       <label>Notes</label><textarea class="field" id="eNotes">${esc(l.notes || "")}</textarea>
       <div class="btns"><button class="btn primary" id="save">Save changes</button></div>
 
@@ -517,7 +526,7 @@ function openLead(id){
   $("#seg").onclick = e => { const b = e.target.closest("[data-s]"); if (!b) return;
     $("#seg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); patch(l, {status: b.dataset.s}, "Moved to " + b.dataset.s); };
   $("#save").onclick = async () => {
-    const ch = {notes: $("#eNotes").value, estValue: $("#eVal").value, amountOwed: $("#eOwed").value,
+    const ch = {phone: $("#ePhone").value.trim(), ownerMailing: $("#eMail").value.trim(), notes: $("#eNotes").value, estValue: $("#eVal").value, amountOwed: $("#eOwed").value,
       amountOwedSource: $("#eOwedSrc").value, estValueSource: $("#eValSrc").value};
     const num = v => v === "" ? null : Number(String(v).replace(/[$,\s]/g, ""));
     if (num(ch.amountOwed) !== l.amountOwed && !ch.amountOwedSource) ch.amountOwedSource = "manual";
@@ -526,6 +535,7 @@ function openLead(id){
     const fresh = await api("GET").catch(() => null); if (fresh) { leads = fresh.leads; render(); }
     toast("Saved"); closeModal();
   };
+  currentLead = l;
   $("#letter").onclick = () => showOut(letterText(l), true);
   $("#script").onclick = () => showOut(scriptText(l), false);
   $("#del").onclick = async () => {
@@ -534,12 +544,21 @@ function openLead(id){
     catch (e) { toast("Delete failed: " + e.message); }
   };
 }
+const LEGAL = `<div class="warn"><b>Before you send or knock:</b> If the home is in foreclosure, Colorado's Foreclosure Protection Act (C.R.S. 6-1-1101 and after) can apply to buying it. It requires a written contract with required notices, gives the owner a right to cancel, and bans misleading statements. Have a real estate attorney review your contract and letter before your first deal.</div>`;
+let currentLead = null;
 function showOut(text, isLetter){
-  $("#out").innerHTML = `<div class="letter" id="txt" contenteditable="true">${esc(text)}</div>
-    <div class="btns"><button class="btn" id="copy">Copy</button>${isLetter ? `<button class="btn" id="print">Print</button>` : ""}</div>
-    <div class="warn"><b>Before you send or knock:</b> If the home is in foreclosure, Colorado's Foreclosure Protection Act (C.R.S. 6-1-1101 and after) can apply to buying it. It requires a written contract with required notices, gives the owner a right to cancel, and bans misleading statements. Have a real estate attorney review your contract and letter before your first deal.</div>`;
+  const rc = isLetter ? recipientFor(currentLead) : null;
+  $("#out").innerHTML = `${isLetter ? `<div class="line" style="font-size:13px;color:var(--ink2);margin-top:10px">To: <b>${rc ? esc(`${rc.name}, ${rc.line1}, ${rc.city}, ${rc.state} ${rc.zip}`) : "No usable address"}</b>${rc && rc.src === "property" ? " (property address, because no mailing address is on file)" : ""}</div>` : ""}
+    <div class="letter" id="txt" contenteditable="true">${esc(text)}</div>
+    <div class="btns"><button class="btn" id="copy">Copy</button>
+      ${isLetter ? `<button class="btn" id="print">🖨 Print</button><button class="btn primary" id="mailOne">📬 Mail it for me</button>` : ""}</div>
+    ${isLetter && !settings.phone ? `<div class="warn">Add your phone number in <b>⋯ → Letter settings</b> so owners can reach you.</div>` : ""}
+    ${LEGAL}`;
   $("#copy").onclick = () => navigator.clipboard?.writeText($("#txt").innerText).then(() => toast("Copied"));
-  const p = $("#print"); if (p) p.onclick = () => { const w = window.open("", "_blank"); w.document.write(`<pre style="font:15px/1.6 Georgia,serif;white-space:pre-wrap;max-width:650px;margin:60px auto">${esc($("#txt").innerText)}</pre>`); w.document.close(); w.print(); };
+  if (isLetter){
+    $("#print").onclick = () => printLetters([{l: currentLead, text: $("#txt").innerText}]);
+    $("#mailOne").onclick = () => mailLetters([{l: currentLead, text: $("#txt").innerText}]);
+  }
 }
 function ownerFirst(l){
   const o = String(l.owner || "").trim();
@@ -547,14 +566,13 @@ function ownerFirst(l){
   const n = (o.includes(",") ? o.split(",")[1] : o).trim().split(/\s+/)[0] || "Homeowner";
   return n.charAt(0).toUpperCase() + n.slice(1).toLowerCase();
 }
+const me = () => settings.senderName || "Leslie";
+const contactLine = () => [settings.phone && `call or text me at ${settings.phone}`, settings.email && `email me at ${settings.email}`].filter(Boolean).join(" or ") || "call or text me at [YOUR PHONE]";
 function letterText(l){
   const pre = l.leadType !== "Tax-delinquent";
-  const today = new Date().toLocaleDateString(undefined, {month:"long", day:"numeric", year:"numeric"});
-  return `${today}
+  return `Dear ${ownerFirst(l)},
 
-Dear ${ownerFirst(l)},
-
-My name is Terel, and I'm a local real estate investor here in Colorado. I'm reaching out about your property at ${fullAddr(l)}.
+My name is ${me()}${settings.company ? ` with ${settings.company}` : ""}, a local real estate investor here in Colorado. I'm reaching out about your property at ${fullAddr(l)}.
 
 ${pre
  ? "Public records show a foreclosure notice was filed on this property. I know that can be a stressful situation, and I'm not writing to pressure you. You have options, including working with your lender, refinancing, selling on the open market, or selling directly to a buyer like me."
@@ -565,28 +583,135 @@ If a direct sale makes sense for you, I can:
   • Pay closing costs and work with your timeline
   • Put every term in writing so you can review it with anyone you trust
 
-${pre ? "Free, independent help is also available from the Colorado Foreclosure Hotline at 1-877-601-HOPE (4673), which connects homeowners with HUD-approved housing counselors. I encourage you to talk with them or an attorney before deciding anything.\n\n" : ""}If you'd like to talk, call or text me at [YOUR PHONE] or email [YOUR EMAIL]. If you're not interested, I won't keep contacting you.
+${pre ? "Free, independent help is also available from the Colorado Foreclosure Hotline at 1-877-601-HOPE (4673), which connects homeowners with HUD-approved housing counselors. I encourage you to talk with them or an attorney before deciding anything.\n\n" : ""}If you'd like to talk, ${contactLine()}. If you're not interested, I won't keep contacting you.
 
 Respectfully,
 
-Terel
-[YOUR COMPANY / LLC]
-[YOUR PHONE]`;
+${me()}${settings.company ? "\n" + settings.company : ""}${settings.phone ? "\n" + settings.phone : ""}`;
 }
 function scriptText(l){
   const pre = l.leadType !== "Tax-delinquent";
   return `DOOR SCRIPT: ${fullAddr(l)}
 
-"Hi, ${ownerFirst(l) === "Homeowner" ? "are you the owner of the home" : "are you " + ownerFirst(l)}? My name is Terel. I'm a local investor, and I buy houses directly from owners here in ${l.city || "the area"}.
+"Hi, ${ownerFirst(l) === "Homeowner" ? "are you the owner of the home" : "are you " + ownerFirst(l)}? My name is [YOUR NAME]${settings.company ? ` with ${settings.company}` : ""}. We're local investors, and we buy houses directly from owners here in ${l.city || "the area"}.
 
 ${pre ? "I saw a public notice about this property and wanted to introduce myself in person, with no pressure at all." : "I saw this property on a public tax list and wanted to introduce myself in person, with no pressure at all."}
 
-If you've ever thought about selling, I can buy as-is and work on your timeline. Would a quick conversation be worth it?"
+If you've ever thought about selling, we can buy as-is and work on your timeline. Would a quick conversation be worth it?"
 
 IF YES: "Great. What would you need to walk away with for it to make sense for you?" Get their timeline, condition, what's owed, and who's on title. Leave your card.
 IF NO: "Totally understand. Here's my card in case anything changes. Have a good day."
 
 DON'T: promise to "save" the house, guess what they'd get after a foreclosure, or ask them to sign anything at the door.${pre ? "\nIF THEY'RE OPEN TO IT: mention the free Colorado Foreclosure Hotline, 1-877-601-HOPE (4673)." : ""}`;
+}
+
+/* ---------- recipients, printing, mailing ---------- */
+function parseAddr(s){
+  const m = String(s || "").trim().match(/^(.+?),\s*([^,]+?),?\s+([A-Za-z]{2})\.?\s+(\d{5})(?:-\d{4})?$/);
+  return m ? {line1: m[1].trim(), city: m[2].trim(), state: m[3].toUpperCase(), zip: m[4]} : null;
+}
+function recipientFor(l){
+  if (!l) return null;
+  const name = (l.owner && !/per filing/i.test(l.owner) ? l.owner.replace(/\s+et al\.?$/i, "") : "Current Resident").slice(0, 40);
+  const m = parseAddr(l.ownerMailing);
+  if (m) return {name, ...m, src: "mailing"};
+  const paren = (l.address.match(/\((.*?)\)/) || [])[1];
+  const line1 = l.address.replace(/\s*\(.*?\)\s*/g, " ").trim();
+  if (!line1 || !l.zip) return null;
+  return {name, line1, city: paren || l.city || "", state: "CO", zip: l.zip, src: "property"};
+}
+const todayLong = () => new Date().toLocaleDateString("en-US", {month:"long", day:"numeric", year:"numeric"});
+function senderBlock(){
+  return [settings.senderName, settings.company, settings.addressLine1, [settings.city, settings.state].filter(Boolean).join(", ") + (settings.zip ? " " + settings.zip : ""), settings.phone, settings.email]
+    .filter(x => x && x.trim() && x.trim() !== ",").map(esc).join("<br>");
+}
+// Printable page lined up for a standard #10 single-window envelope (recipient block ~2" from top, 0.75" from left). Test-fold one first.
+function printPage(l, text){
+  const rc = recipientFor(l);
+  return `<section class="pg">
+    <div class="from">${senderBlock()}</div>
+    <div class="to">${rc ? `${esc(rc.name)}<br>${esc(rc.line1)}<br>${esc(rc.city)}, ${esc(rc.state)} ${esc(rc.zip)}` : "&nbsp;"}</div>
+    <div class="date">${todayLong()}</div>
+    <div class="txt">${esc(text)}</div></section>`;
+}
+function printLetters(items){
+  const w = window.open("", "_blank");
+  if (!w) return toast("Allow pop-ups to print");
+  w.document.write(`<!DOCTYPE html><html><head><title>Letters</title><style>
+    @page{size:letter;margin:0} body{margin:0;font:12pt/1.5 Georgia,'Times New Roman',serif;color:#111}
+    .pg{width:8.5in;height:11in;box-sizing:border-box;padding:0.5in 0.85in;position:relative;page-break-after:always;overflow:hidden}
+    .from{font-size:10pt;line-height:1.35}
+    .to{position:absolute;top:2.05in;left:0.9in;width:3.8in;font-size:11.5pt;line-height:1.35}
+    .date{position:absolute;top:3.45in;left:0.85in}
+    .txt{position:absolute;top:3.95in;left:0.85in;right:0.85in;white-space:pre-wrap;font-size:11.5pt;line-height:1.45}
+  </style></head><body>${items.map(i => printPage(i.l, i.text)).join("")}</body></html>`);
+  w.document.close(); setTimeout(() => w.print(), 300);
+}
+// HTML for Lob: Lob prints both addresses in the top ~3.25" of page 1, so the letter starts below that.
+function lobHTML(text){
+  return `<html><head><meta charset="UTF-8"><style>body{margin:0}.p{padding:3.4in 0.85in 0.5in;font:11.5pt/1.45 Georgia,serif;white-space:pre-wrap}</style></head><body><div class="p">${esc(todayLong())}\n\n${esc(text)}</div></body></html>`;
+}
+async function mailLetters(items){
+  if (!mailInfo.enabled) return openModal(`<div class="pad"><div class="dprice" style="font-size:22px">Set up mailing</div>
+    <p>The app can mail real printed letters for you through <b>Lob</b> (lob.com), which charges per letter. To turn it on:</p>
+    <ol style="line-height:1.6"><li>Create a Lob account and copy your <b>API key</b>. Start with the <b>test</b> key (starts with <code>test_</code>): letters are created as previews and <b>never mailed</b>.</li>
+    <li>In Netlify → Environment variables, add <code>LOB_API_KEY</code> (your key) and <code>MAIL_PIN</code> (any PIN you pick, so nobody else can spend your money).</li>
+    <li>Trigger a deploy, then add your return address in <b>⋯ → Letter settings</b>.</li></ol>
+    <p>When you're happy with the test previews, swap in your <b>live</b> key.</p>
+    <div class="btns"><button class="btn primary" id="okm">Got it</button></div></div>`), $("#okm").onclick = closeModal;
+  if (!settings.addressLine1 || !settings.zip) { toast("Add your return address in ⋯ → Letter settings first"); return openSettings(); }
+  const ready = [], skipped = [];
+  for (const i of items) { const rc = recipientFor(i.l); (rc ? ready : skipped).push({...i, rc}); }
+  if (!ready.length) return toast("None of these leads have a usable mailing address");
+  const live = mailInfo.mode === "live";
+  openModal(`<div class="pad"><div class="dprice" style="font-size:22px">${live ? "Mail" : "Create"} ${ready.length} ${live ? "" : "test "}letter${ready.length > 1 ? "s" : ""}?</div>
+    <p style="color:${live ? "var(--red)" : "var(--ink2)"};font-weight:700">${live ? "LIVE: these will be printed and mailed, and Lob will charge your account for each one." : "TEST mode: Lob makes previews only. Nothing is mailed or charged."}</p>
+    <div style="max-height:220px;overflow:auto;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:8px">${ready.map(r => `• ${esc(r.rc.name)}, ${esc(r.rc.line1)}, ${esc(r.rc.city)} ${esc(r.rc.zip)}${r.rc.src === "property" ? " <i>(property address)</i>" : ""}`).join("<br>")}</div>
+    ${skipped.length ? `<p style="font-size:13px;color:var(--muted)">Skipped ${skipped.length} with no usable address.</p>` : ""}
+    <p style="font-size:13px">From: ${esc(settings.senderName)}, ${esc(settings.company)}, ${esc(settings.addressLine1)}, ${esc(settings.city)} ${esc(settings.zip)}</p>
+    <label>Mail PIN</label><input class="field" id="pin" type="password" inputmode="numeric" value="${esc(sessionPin())}">
+    ${LEGAL}
+    <div class="btns"><button class="btn primary" id="go">${live ? "Mail them" : "Create test letters"}</button><button class="btn" id="cancel">Cancel</button></div></div>`);
+  $("#cancel").onclick = closeModal;
+  $("#go").onclick = async () => {
+    $("#go").disabled = true; $("#go").textContent = "Sending…";
+    const pin = $("#pin").value.trim(); try { sessionStorage.setItem("lf_pin", pin); } catch {}
+    try {
+      const r = await api("POST", {pin, letters: ready.map(x => ({leadId: x.l.id,
+        to: {name: x.rc.name, address_line1: x.rc.line1, address_city: x.rc.city, address_state: x.rc.state, address_zip: x.rc.zip},
+        html: lobHTML(x.text)}))}, null, "/api/mail");
+      let ok = 0; const errs = [];
+      for (const res of r.results) {
+        const l = leads.find(x => x.id === res.leadId); if (!l) continue;
+        if (res.ok) { ok++;
+          const tag = `${r.mode === "live" ? "Mailed" : "TEST letter"} ${new Date().toISOString().slice(0,10)} (${res.id})${res.expected ? ", arrives ~" + res.expected : ""}`;
+          const ch = {lastLetter: tag, notes: ((l.notes || "") + "\n" + tag).trim()};
+          if (r.mode === "live" && ["New","Reviewed"].includes(l.status || "New")) ch.status = "Contacted";
+          await patch(l, ch);
+        } else errs.push(`${l.address}: ${res.error}`);
+      }
+      closeModal(); toast(`${r.mode === "live" ? "Mailed" : "Test letters created"}: ${ok}${errs.length ? `, ${errs.length} failed` : ""}`);
+      if (errs.length) alert("Some letters failed:\n\n" + errs.join("\n"));
+    } catch (e) { $("#go").disabled = false; $("#go").textContent = "Try again"; toast(e.message); }
+  };
+}
+const sessionPin = () => { try { return sessionStorage.getItem("lf_pin") || ""; } catch { return ""; } };
+const savedLeads = () => leads.filter(l => l.saved && l.status !== "Dead");
+function openSettings(){
+  const f = (id, label, ph = "", type = "text") => `<label>${label}</label><input class="field" id="s_${id}" type="${type}" value="${esc(settings[id] || "")}" placeholder="${ph}">`;
+  openModal(`<div class="pad"><div class="dprice" style="font-size:22px">Letter settings</div>
+    <p style="color:var(--muted);font-size:14px">This info goes on every letter so owners can reach you. It's saved for all your devices.</p>
+    ${f("senderName","Your name (signs the letter)","Leslie")}${f("company","Company","Graceful OM LLC")}
+    <div class="grid2"><div>${f("phone","Phone","(970) 555-0100","tel")}</div><div>${f("email","Email","you@example.com","email")}</div></div>
+    ${f("addressLine1","Return address","123 Main St")}
+    <div class="grid2"><div>${f("city","City","Loveland")}</div><div class="grid2"><div>${f("state","State","CO")}</div><div>${f("zip","ZIP","80537")}</div></div></div>
+    <div class="btns"><button class="btn primary" id="sSave">Save</button><button class="btn" id="sX">Cancel</button></div></div>`);
+  $("#sX").onclick = closeModal;
+  $("#sSave").onclick = async () => {
+    const body = {}; ["senderName","company","phone","email","addressLine1","city","state","zip"].forEach(k => body[k] = $("#s_" + k).value.trim());
+    try { settings = (await api("PUT", body, null, "/api/settings")).settings; closeModal(); toast("Letter settings saved"); }
+    catch (e) { toast("Save failed: " + e.message); }
+  };
 }
 
 /* ---------- key, add, import, export ---------- */
@@ -601,6 +726,9 @@ function askKey(bad){
 $("#menuBtn").onclick = () => {
   openModal(`<div class="pad"><div class="dprice" style="font-size:22px">More</div>
     <div class="btns" style="flex-direction:column;align-items:stretch">
+      <button class="btn" id="mSettings">✉️ Letter settings (your name, phone, return address)</button>
+      <button class="btn" id="mPrintAll">🖨 Print letters for all Saved ♥ leads</button>
+      <button class="btn" id="mMailAll">📬 Mail letters to all Saved ♥ leads${mailInfo.enabled ? (mailInfo.mode === "test" ? " (test mode)" : "") : " (set up)"}</button>
       <button class="btn" id="mImport">⬆ Import leads (JSON or CSV)</button>
       <button class="btn" id="mExport">⬇ Export current list (CSV)</button>
       <button class="btn" id="mGeo">📍 Find map pins for all leads</button>
@@ -610,14 +738,17 @@ $("#menuBtn").onclick = () => {
   $("#mKey").onclick = () => askKey(false);
   $("#mGeo").onclick = () => { leads.forEach(l => delete l._geoFail); geocodeQueue(); closeModal(); toast("Finding pins in the background…"); };
   $("#mExport").onclick = () => {
-    const cols = ["amountOwed","address","city","county","zip","leadType","keyDate","status","saved","estValue","propertyType","owner","ownerMailing","lender","caseNumber","sourceUrl","firstSeen","notes"];
+    const cols = ["amountOwed","address","city","county","zip","leadType","keyDate","status","saved","estValue","propertyType","owner","ownerMailing","phone","lender","caseNumber","sourceUrl","firstSeen","notes"];
     const csv = [cols.join(",")].concat(filtered({status:""}).map(l => cols.map(c => `"${String(l[c] ?? "").replace(/"/g,'""')}"`).join(","))).join("\n");
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([csv], {type:"text/csv"}));
     a.download = `leads-${new Date().toISOString().slice(0,10)}.csv`; a.click();
   };
   $("#mImport").onclick = importSheet;
+  $("#mSettings").onclick = openSettings;
+  $("#mPrintAll").onclick = () => { const s = savedLeads(); if (!s.length) return toast("Save ♥ some leads first"); printLetters(s.map(l => ({l, text: letterText(l)}))); };
+  $("#mMailAll").onclick = () => { const s = savedLeads(); if (!s.length && mailInfo.enabled) return toast("Save ♥ some leads first"); mailLetters(s.map(l => ({l, text: letterText(l)}))); };
 };
-const HEAD_MAP = {"amount owed":"amountOwed","address":"address","city":"city","county":"county","zip":"zip","lead type":"leadType","sale / key date":"keyDate","key date":"keyDate","sale date":"keyDate","status":"status","est. value":"estValue","est value":"estValue","property type":"propertyType","home type":"propertyType","owner":"owner","owner (public record)":"owner","owner mailing address":"ownerMailing","case / sale #":"caseNumber","case #":"caseNumber","source link":"sourceUrl","notes":"notes","lender":"lender","tax owed":"taxOwed","lat":"lat","lng":"lng"};
+const HEAD_MAP = {"amount owed":"amountOwed","address":"address","city":"city","county":"county","zip":"zip","lead type":"leadType","sale / key date":"keyDate","key date":"keyDate","sale date":"keyDate","status":"status","est. value":"estValue","est value":"estValue","property type":"propertyType","home type":"propertyType","owner":"owner","owner (public record)":"owner","owner mailing address":"ownerMailing","phone":"phone","case / sale #":"caseNumber","case #":"caseNumber","source link":"sourceUrl","notes":"notes","lender":"lender","tax owed":"taxOwed","lat":"lat","lng":"lng"};
 function parseCSV(text){
   const rows = []; let row = [], cur = "", q = false;
   for (let i = 0; i < text.length; i++){ const c = text[i];

@@ -51,3 +51,10 @@ await fetch("https://YOUR-SITE.netlify.app/api/leads", {
 ## Legal note
 
 If a home is in foreclosure, Colorado's Foreclosure Protection Act (C.R.S. 6-1-1101 and after) can apply to buying it. It requires a written contract with required notices, gives the owner a right to cancel, and prohibits misleading statements. Have a real estate attorney review your contract and your outreach letter before your first deal.
+
+## Letters
+
+- **⋯ → Letter settings:** your name, company, phone, email and return address. These go on every letter. The defaults are Leslie / Graceful OM LLC.
+- **Print:** open a lead → ✉️ Owner letter → 🖨 Print, or use ⋯ → Print letters for all Saved ♥ leads (one page per lead). The recipient address is placed for a standard #10 window envelope, so test-fold one letter first.
+- **Mail it for me (Lob):** add `LOB_API_KEY` and `MAIL_PIN` in Netlify, then redeploy. A `test_` key creates previews only and nothing is mailed. A live key prints, mails and charges per letter. The app asks for your PIN and shows a confirmation every time before it sends.
+- **Phone numbers:** public records don't include them. Each lead has a Phone field for numbers owners give you.
