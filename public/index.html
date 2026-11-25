@@ -309,7 +309,9 @@ function photoHTML(l){
   const ph = `<div class="ph">${houseSVG}<span>${street}</span></div>`;
   if (!svKey) return ph;
   const src = `https://maps.googleapis.com/maps/api/streetview?size=640x400&fov=80&return_error_code=true&location=${encodeURIComponent(fullAddr(l))}&key=${encodeURIComponent(svKey)}`;
-  return ph + `<img loading="lazy" alt="" src="${src}" onerror="this.remove()">`;
+  const sat = `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(fullAddr(l))}&zoom=19&size=640x400&maptype=satellite&key=${encodeURIComponent(svKey)}`;
+  // Street View first; if Google has no street photo for this address, fall back to the aerial photo; then the house icon.
+  return ph + `<img loading="lazy" alt="" src="${src}" data-sat="${esc(sat)}" onerror="if(this.dataset.sat){this.src=this.dataset.sat;this.dataset.sat=''}else{this.remove()}">`;
 }
 const heartSVG = on => `<svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2.1 0 3.6 1.2 4.4 2.6h1.6c.8-1.4 2.3-2.6 4.4-2.6 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z" fill="${on ? "#d8232a" : "#0006"}" stroke="#fff" stroke-width="1.6"/></svg>`;
 
@@ -814,6 +816,17 @@ function aerialHTML(l){
   return `<div style="position:relative;margin:10px 0 0"><img src="${src}" alt="Aerial view" loading="lazy" style="width:100%;border-radius:10px;display:block" onerror="this.parentNode.remove()"><span style="position:absolute;left:8px;bottom:8px;background:#000a;color:#fff;font-size:12px;padding:2px 8px;border-radius:8px">Aerial: roof, yard, lot</span></div>`;
 }
 
+async function photoCheck(){
+  const show = (title, body) => openModal(`<div class="pad"><div class="dprice" style="font-size:22px">${title}</div><div style="color:var(--ink2);font-size:14px;line-height:1.5">${body}</div><div class="btns"><button class="btn primary" onclick="closeModal()">OK</button></div></div>`);
+  if (!svKey) return show("Photos are off", "The app has no Google Maps key. In Netlify → co-lead-finder → Site configuration → Environment variables, add <b>GOOGLE_MAPS_KEY</b> with your Google key, then redeploy.");
+  const l = leads.find(x => x.address && /^\d/.test(x.address)) || leads[0];
+  const q = (api) => fetch(`https://maps.googleapis.com/maps/api/streetview/metadata?location=${encodeURIComponent(fullAddr(l))}&key=${encodeURIComponent(svKey)}`).then(r => r.json()).catch(e => ({status: "NETWORK", error_message: e.message}));
+  const m = await q();
+  const sat = await new Promise(res => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(fullAddr(l))}&zoom=19&size=64x64&maptype=satellite&key=${encodeURIComponent(svKey)}`; });
+  const sv = m.status === "OK" ? "✅ Street View works" : m.status === "ZERO_RESULTS" || m.status === "NOT_FOUND" ? "✅ Street View key works (this one house has no street photo, which is normal for some homes)" : `❌ Street View blocked: <b>${esc(m.status)}</b>${m.error_message ? " — " + esc(m.error_message) : ""}`;
+  const fix = m.status === "REQUEST_DENIED" || !sat ? `<p><b>To fix it</b> in <a href="https://console.cloud.google.com/apis/library" target="_blank" rel="noopener">Google Cloud Console</a> (same project as your key):</p><ol><li>APIs &amp; Services → Library → turn on <b>Street View Static API</b> and <b>Maps Static API</b>.</li><li>Billing → make sure a billing account is linked (Google gives a monthly free credit; these photos usually stay inside it).</li><li>Credentials → your key → if "Application restrictions" is set to websites, add <b>co-lead-finder.netlify.app/*</b>. Under "API restrictions," allow both APIs above.</li><li>Wait a few minutes, then reopen the app.</li></ol>` : "";
+  show("House photo check", `<p>Tested: ${esc(fullAddr(l))}</p><p>${sv}<br>${sat ? "✅ Aerial photos work" : "❌ Aerial photos blocked (Maps Static API)"}</p>${fix}`);
+}
 function visitPacket(l){
   const e = mortgageEstimate(l), st = subTo(l), oc = owedConf(l), vc = valueConf(l), eq = equity(l), county = countyOf(l);
   const pill = c => `<span class="p p-${c[0]}">${c[1]}</span>`;
@@ -1365,6 +1378,7 @@ $("#menuBtn").onclick = () => {
       <button class="btn" id="mMailAll">📬 Mail letters to all Saved ♥ leads${mailInfo.enabled ? (mailInfo.mode === "test" ? " (test mode)" : "") : " (set up)"}</button>
       <button class="btn" id="mImport">⬆ Import leads (JSON or CSV)</button>
       <button class="btn" id="mExport">⬇ Export current list (CSV)</button>
+      <button class="btn" id="mPhoto">📷 Check house photos</button>
       <button class="btn" id="mGeo">📍 Find map pins for all leads</button>
       <button class="btn" id="mKey">🔑 Access key (only if you turn one on)</button>
       <button class="btn" id="mClose">Close</button></div></div>`);
@@ -1378,6 +1392,7 @@ $("#menuBtn").onclick = () => {
     a.download = `leads-${new Date().toISOString().slice(0,10)}.csv`; a.click();
   };
   $("#mImport").onclick = importSheet;
+  $("#mPhoto").onclick = photoCheck;
   $("#mSettings").onclick = openSettings;
   $("#mSell").onclick = () => { const u = sellUrl(null), q = qrDataURL(u);
     openModal(`<div class="pad"><div class="dprice" style="font-size:22px">Your seller page</div>
