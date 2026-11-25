@@ -417,6 +417,7 @@ function cardHTML(l, mode){
       <div class="price">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"}<small>${l.amountOwedSource === "original-loan" ? "orig. loan" : "owed"}</small></div>
       ${facts ? `<div class="facts">${facts}</div>` : ""}
       ${(() => { const e = mortgageEstimate(l); return !e.ok ? `<div class="facts" style="color:var(--muted)"><span>Add loan amount to estimate payment &amp; amount behind</span></div>` : `<div class="facts" style="color:var(--ink2)"><span>≈ <b>${money(e.piti)}</b>/mo</span>${e.arrears != null ? `<span class="sep">|</span><span>≈ <b>${short(e.arrears)}</b> behind</span>` : ""}<span class="sep">|</span><span>≈ ${short(e.balance)} owed</span></div>`; })()}
+      <details class="how" onclick="event.stopPropagation()"><summary style="font-size:12px;color:var(--accent,#0b6bcb);cursor:pointer;margin-top:4px">ⓘ How do we know?</summary>${howHTML(l)}</details>
       <div class="addr">${esc(fullAddr(l))}</div>
       <div class="meta"><span>${[l.propertyType ? esc(l.propertyType) : "", l.keyDate ? "Key date " + fmtDate(l.keyDate) : esc(countyOf(l)) + " County"].filter(Boolean).join(" · ")}</span>
         <span class="status st-${st.split(" ")[0]}">${esc(st)}</span></div>
@@ -779,6 +780,39 @@ const STEPS = [
   ["autopay", "Loan payments set up and tracked", "Use the payment tracker every month"],
 ];
 
+/* ---------- "How we know" — the evidence behind each number ---------- */
+function howWeKnow(l){
+  const e = mortgageEstimate(l), out = []; const F = t => out.push(["fact", t]), R = t => out.push(["rule", t]), E = t => out.push(["est", t]);
+  const pt = `${countyOf(l)} County Public Trustee`;
+  if (l.leadType === "Tax-delinquent" || l.taxOwed) F(`The ${countyOf(l)} County Treasurer lists ${money(l.taxOwed ?? l.amountOwed)} in unpaid property taxes on this home (delinquent tax list). That's taxes, not the mortgage.`);
+  if (l.leadType === "Tax-delinquent" && !l.nedDate) { out.push(["est", "We don't know if there's a mortgage or whether it's current: homes with tax debt often have no loan, or the lender isn't paying taxes from escrow."]); return out; }
+  if (l.nedDate) F(`On ${fmtDate(l.nedDate)} the lender filed a Notice of Election and Demand with the ${pt}. That's the official start of a foreclosure: the lender is saying the loan is in default.`);
+  else if (l.leadType === "Pre-foreclosure") F(`This home is in the ${pt}'s active foreclosure list${l.caseNumber ? " (#" + esc(l.caseNumber) + ")" : ""}.`);
+  if (l.ptStatus) F(`Status in the county file: ${esc(l.ptStatus)}${l.ptStatus === "Active" || l.ptStatus === "NED Recorded" ? " (not withdrawn, cured or sold as of our last check)" : ""}.`);
+  if (l.amountOwedSource === "principal") F(`The lender told the Public Trustee the unpaid principal is ${money(l.amountOwed)}${l.balanceAsOf ? " as of " + fmtDate(l.balanceAsOf) : ""}. That's what's left on the loan, not counting missed payments, interest and fees.`);
+  if (l.originalLoan || l.loanDate) F(`Original loan: ${money(l.originalLoan)}${l.loanDate ? " on " + fmtDate(l.loanDate) : ""}${l.interestRate ? " at " + l.interestRate + "%" : ""}${l.loanType ? " (" + esc(l.loanType) + ")" : ""}, from the deed of trust in the county file.`);
+  if (l.cureTotal) F(`The lender's cure figure on file is ${money(l.cureTotal)}: the actual amount to bring the loan current.`);
+  if (l.nedDate || l.leadType === "Pre-foreclosure") R("Federal mortgage rules (Regulation X, 12 CFR 1024.41) don't let a servicer start a foreclosure until the loan is more than 120 days past due. So the owner was at least 4 months behind when the notice was filed.");
+  if (e.ok && e.behind != null) {
+    if (l.balanceAsOf) E(`Months behind ≈ ${e.behind}: we count the months from the balance date (${fmtDate(l.balanceAsOf)}) to today, because lenders usually state the balance as of the first missed payment. Treat it as an estimate.`);
+    else E(`Months behind ≈ ${e.behind}: 4 months at the foreclosure notice plus each month since${e.nedGuessed ? " (notice date estimated from the sale date)" : ""}.`);
+    E(`Payment ≈ ${money(e.piti)}/mo: principal and interest on the ${money(e.orig)} original loan over 30 years at ${e.rate}%${e.rateKnown ? " (rate from the record)" : " (average rate for that year, not their actual rate)"}, plus about ${money(e.taxes)} taxes and ${money(e.ins)} insurance.`);
+    E(`Behind ≈ ${money(e.arrears)}: ${e.behind} payments × ${money(e.piti)}, plus about ${money(e.lateFees)} late fees and ${money(e.fcCosts)} foreclosure costs.`);
+  }
+  if (!e.ok) E("We can't estimate the payment yet: no loan amount on file. Add it from the foreclosure filing or the seller's statement.");
+  out.push(["how", "To get the exact number: have the owner sign an authorization and ask the servicer for a reinstatement quote, or file a Notice of Intent to Cure with the Public Trustee so the lender must send a cure statement."]);
+  return out;
+}
+const HOW_ICON = {fact: ["✅", "From the record"], rule: ["⚖️", "Law"], est: ["≈", "Our estimate"], how: ["👉", "Get the real number"]};
+function howHTML(l){
+  return howWeKnow(l).map(([k, t]) => `<div style="display:flex;gap:8px;margin:6px 0;font-size:13px;line-height:1.4"><span title="${HOW_ICON[k][1]}">${HOW_ICON[k][0]}</span><span><b style="font-size:11px;text-transform:uppercase;color:var(--muted)">${HOW_ICON[k][1]}</b><br>${t}</span></div>`).join("");
+}
+function aerialHTML(l){
+  if (!svKey) return "";
+  const src = `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(fullAddr(l))}&zoom=19&size=640x320&scale=2&maptype=satellite&markers=size:small%7C${encodeURIComponent(fullAddr(l))}&key=${encodeURIComponent(svKey)}`;
+  return `<div style="position:relative;margin:10px 0 0"><img src="${src}" alt="Aerial view" loading="lazy" style="width:100%;border-radius:10px;display:block" onerror="this.parentNode.remove()"><span style="position:absolute;left:8px;bottom:8px;background:#000a;color:#fff;font-size:12px;padding:2px 8px;border-radius:8px">Aerial: roof, yard, lot</span></div>`;
+}
+
 function visitPacket(l){
   const e = mortgageEstimate(l), st = subTo(l), oc = owedConf(l), vc = valueConf(l), eq = equity(l), county = countyOf(l);
   const pill = c => `<span class="p p-${c[0]}">${c[1]}</span>`;
@@ -846,6 +880,7 @@ function openLead(id){
       <a class="svbtn" target="_blank" rel="noopener noreferrer" href="${streetViewLink(l)}">👁 Walk around in Street View</a></div>
     <div class="pad">
       <div class="daddr" style="font-size:19px;font-weight:800">${esc(fullAddr(l))}</div>
+      ${aerialHTML(l)}
       <div class="chips"><span class="chip" style="color:${typeColor(l.leadType)}">● ${esc(l.leadType || "Lead")}</span>
         ${l.propertyType ? `<span class="chip">${esc(l.propertyType)}</span>` : ""}
         <span class="chip">${esc(county)} County</span>
@@ -887,6 +922,8 @@ function openLead(id){
           <div class="val" style="font-size:16px">${fmtDate(l.keyDate)}</div>
           <div class="why">${l.amountOwedSource === "original-loan" ? "Court response deadline. The actual sale date is usually weeks later. Confirm it with the Public Trustee." : "Sale date or deadline from the record."}</div></div>
       </div>
+
+      <details class="tool" open><summary>ⓘ How do we know they're behind, and by how much?</summary><div style="padding:4px 2px">${howHTML(l)}</div></details>
 
       <div class="sect">Deadlines that matter</div>
       ${deadlinesHTML(l)}
