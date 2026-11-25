@@ -14,6 +14,7 @@ const FIELDS = [
   "amountOwed", "address", "city", "county", "zip", "leadType", "keyDate",
   "status", "estValue", "propertyType", "owner", "ownerMailing", "caseNumber",
   "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen", "amountOwedSource", "estValueSource", "phone", "lastLetter", "loanDate", "interestRate", "deal", "checklist", "payments", "hot", "email", "source", "letters", "comps", "portfolio", "sqft", "originalLoan", "nedDate", "balanceAsOf", "loanType", "holder", "ptStatus",
+  "cureIntentDeadline", "cureDeadline", "cureTotal", "cureStatementDate", "lenderBid", "bankruptcy", "lienParties",
 ];
 
 const json = (body, status = 200) =>
@@ -44,7 +45,7 @@ const fixCity = (c) => {
 function clean(input) {
   const out = {};
   for (const f of FIELDS) if (input[f] !== undefined) out[f] = input[f];
-  for (const n of ["amountOwed", "estValue", "taxOwed", "lat", "lng", "originalLoan", "sqft"]) {
+  for (const n of ["amountOwed", "estValue", "taxOwed", "lat", "lng", "originalLoan", "sqft", "cureTotal", "lenderBid"]) {
     if (out[n] === "" || out[n] === null) out[n] = null;
     else if (out[n] !== undefined) {
       const v = Number(String(out[n]).replace(/[$,\s]/g, ""));
@@ -58,6 +59,7 @@ function clean(input) {
   for (const k of ["deal", "checklist"]) if (out[k] !== undefined && (typeof out[k] !== "object" || Array.isArray(out[k]) || JSON.stringify(out[k]).length > 8000)) delete out[k];
   for (const k of ["letters", "comps"]) if (out[k] !== undefined && (!Array.isArray(out[k]) || JSON.stringify(out[k]).length > 20000)) delete out[k];
   if (out.portfolio !== undefined && (typeof out.portfolio !== "object" || Array.isArray(out.portfolio))) delete out.portfolio;
+  if (out.lienParties !== undefined && (!Array.isArray(out.lienParties) || JSON.stringify(out.lienParties).length > 6000)) delete out.lienParties;
   if (out.payments !== undefined && (!Array.isArray(out.payments) || JSON.stringify(out.payments).length > 40000)) delete out.payments;
   if (out.interestRate !== undefined) { const r = Number(String(out.interestRate).replace(/[%\s]/g, "")); out.interestRate = Number.isFinite(r) && r > 0 && r < 30 ? r : null; }
   return out;
