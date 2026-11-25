@@ -13,7 +13,7 @@ const STATUSES = ["New", "Reviewed", "Contacted", "Offer Made", "Dead"];
 const FIELDS = [
   "amountOwed", "address", "city", "county", "zip", "leadType", "keyDate",
   "status", "estValue", "propertyType", "owner", "ownerMailing", "caseNumber",
-  "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen", "amountOwedSource", "estValueSource", "phone", "lastLetter", "loanDate", "interestRate", "deal", "checklist", "payments", "hot", "email", "source", "letters", "comps", "portfolio", "sqft", "originalLoan", "nedDate", "balanceAsOf", "loanType", "holder",
+  "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen", "amountOwedSource", "estValueSource", "phone", "lastLetter", "loanDate", "interestRate", "deal", "checklist", "payments", "hot", "email", "source", "letters", "comps", "portfolio", "sqft", "originalLoan", "nedDate", "balanceAsOf", "loanType", "holder", "ptStatus",
 ];
 
 const json = (body, status = 200) =>
@@ -94,12 +94,18 @@ export default async (req) => {
     const leads = await load(store);
     const byId = new Map(leads.map((l) => [l.id, l]));
     const today = new Date().toISOString().slice(0, 10);
-    let added = 0, updated = 0;
+    let added = 0, updated = 0, removed = 0;
     for (const raw of incoming) {
       if (!raw || (!raw.address && !raw.caseNumber)) continue;
       const c = clean(raw);
       const lid = leadId(raw);
       const prev = byId.get(lid);
+      if (raw.remove) {
+        // foreclosure is over (withdrawn, cured, sold, deeded): drop untouched leads, mark worked ones Dead
+        if (prev && prev.status === "New" && !prev.hot && !prev.saved) { byId.delete(lid); removed++; }
+        else if (prev && prev.status !== "Dead") { byId.set(lid, { ...prev, status: "Dead", ptStatus: c.ptStatus || prev.ptStatus, notes: `${prev.notes || ""}\nPublic Trustee status: ${c.ptStatus || "closed"} (${today}).`.trim(), updatedAt: today }); removed++; }
+        continue;
+      }
       if (prev) {
         // keep the user's own pipeline status/notes unless the scanner marks it Dead
         const merged = { ...prev, ...c, id: lid, firstSeen: prev.firstSeen, updatedAt: today };
@@ -115,7 +121,7 @@ export default async (req) => {
     }
     const all = [...byId.values()];
     await store.setJSON(KEY, all);
-    return json({ added, updated, total: all.length });
+    return json({ added, updated, removed, total: all.length });
   }
 
   if (req.method === "PATCH") {
