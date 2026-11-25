@@ -522,14 +522,15 @@ function render(){
   const allNew = leads.filter(l => inCorridor(l) && (l.status || "New") === "New").length;
   $("#newTitle").textContent = `${fresh.length} new lead${fresh.length === 1 ? "" : "s"}`;
   const b = $("#newBadge"); b.hidden = !allNew; b.textContent = allNew;
-  $("#newGrid").innerHTML = fresh.length ? fresh.map(l => cardHTML(l, "feed")).join("") :
+  const more = (k, n) => n > showN[k] ? `<button class="btn" style="grid-column:1/-1;margin:14px auto;display:block" onclick="showN.${k}+=60;render()">Show more (${n - showN[k]} left)</button>` : "";
+  $("#newGrid").innerHTML = fresh.length ? fresh.slice(0, showN.feed).map(l => cardHTML(l, "feed")).join("") + more("feed", fresh.length) :
     `<div class="empty"><b>You're all caught up</b>No new leads match your filters. New ones show up here after each scan.</div>`;
   bindCards($("#newGrid"));
 
   // Search
   const rows = filtered();
   $("#searchCount").textContent = `${rows.length} result${rows.length === 1 ? "" : "s"}`;
-  $("#searchGrid").innerHTML = rows.length ? rows.map(l => cardHTML(l)).join("") :
+  $("#searchGrid").innerHTML = rows.length ? rows.slice(0, showN.search).map(l => cardHTML(l)).join("") + more("search", rows.length) :
     `<div class="empty"><b>No matches</b>Try clearing a filter or the search box.</div>`;
   bindCards($("#searchGrid"));
   if (view === "search") drawMap(rows);
@@ -538,7 +539,7 @@ function render(){
   const pipeRows = filtered({status:""});
   $("#board").innerHTML = STATUSES.map(s => {
     const items = pipeRows.filter(r => (r.status || "New") === s);
-    return `<div class="col"><h3><span>${s}</span><span style="color:var(--muted)">${items.length}</span></h3>${items.map(l => cardHTML(l)).join("") || `<div style="color:var(--muted);font-size:13px;padding:6px">Nothing here</div>`}</div>`;
+    return `<div class="col"><h3><span>${s}</span><span style="color:var(--muted)">${items.length}</span></h3>${items.slice(0, 40).map(l => cardHTML(l)).join("")}${items.length > 40 ? `<div style="color:var(--muted);font-size:13px;padding:6px">+${items.length - 40} more — use filters or the New tab</div>` : ""}${items.length ? "" : `<div style="color:var(--muted);font-size:13px;padding:6px">Nothing here</div>`}</div>`;
   }).join("");
   bindCards($("#board"));
   if (view === "pipe") { if (pipeTab === "results") renderResults(); if (pipeTab === "portfolio") renderPortfolio(); }
@@ -629,6 +630,7 @@ function drawMap(rows){
 }
 // Quietly find map coordinates for leads that don't have them (≈1 per second, free OpenStreetMap geocoder).
 let geoBusy = false;
+var showN = {feed: 60, search: 60};
 async function geocodeQueue(){
   if (geoBusy) return; geoBusy = true;
   // save pins in small batches (one write per ~20 pins instead of one per pin)
