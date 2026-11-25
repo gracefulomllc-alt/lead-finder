@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Behind on your mortgage? Talk to a local buyer</title>
+<meta name="description" content="Colorado homeowners: if you're behind on payments or facing foreclosure, you have options. Talk with a local buyer, no pressure.">
+<style>
+:root{--blue:#1a56db;--ink:#1f2430;--ink2:#4b5263;--muted:#7a8193;--line:#e3e6ec;--bg:#f6f7f9;--green:#0a7a3a}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+.wrap{max-width:720px;margin:0 auto;padding:0 18px}
+header{background:#fff;border-bottom:1px solid var(--line)}
+header .wrap{display:flex;align-items:center;justify-content:space-between;padding:14px 18px}
+.brand{font-weight:800;font-size:18px}
+.call{font-weight:700;color:var(--blue);text-decoration:none}
+.hero{padding:34px 0 10px}
+h1{font-size:30px;line-height:1.2;margin:0 0 10px}
+.lead{font-size:18px;color:var(--ink2);margin:0}
+.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;margin:18px 0}
+h2{font-size:20px;margin:0 0 10px}
+ul{padding-left:20px;margin:8px 0}
+li{margin:6px 0}
+.opts{display:grid;gap:10px}
+.opt{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.opt b{display:block}
+.opt span{color:var(--ink2);font-size:15px}
+label{display:block;font-weight:600;font-size:14px;margin:12px 0 5px}
+input,select,textarea{width:100%;font:inherit;padding:11px 12px;border:1px solid #c7ccd6;border-radius:9px;background:#fff}
+input:focus,select:focus,textarea:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px #1a56db22}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:520px){.row{grid-template-columns:1fr}h1{font-size:26px}}
+.consent{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:var(--ink2);margin-top:14px}
+.consent input{width:auto;margin-top:4px}
+button{width:100%;margin-top:16px;padding:14px;border:0;border-radius:10px;background:var(--blue);color:#fff;font:700 17px system-ui,sans-serif;cursor:pointer}
+button:disabled{opacity:.6}
+.help{background:#eefbf2;border-color:#bfe8cc}
+.hp{position:absolute;left:-9999px}
+.ok{display:none;text-align:center}
+.ok h2{color:var(--green)}
+.err{color:#b42318;font-weight:600;margin-top:10px}
+footer{color:var(--muted);font-size:13px;padding:20px 0 40px}
+</style>
+</head>
+<body>
+<header><div class="wrap"><div class="brand" id="brand">Local Home Buyer</div><a class="call" id="callTop" href="#form">Contact us</a></div></header>
+<main class="wrap">
+  <section class="hero">
+    <h1>Behind on your mortgage? You have options.</h1>
+    <p class="lead">We're local Colorado real estate investors. If payments have gotten hard, we'll talk through your situation with you, with no pressure and no obligation.</p>
+  </section>
+
+  <div class="card">
+    <h2>Your options usually include</h2>
+    <div class="opts">
+      <div class="opt"><b>Work it out with your lender</b><span>A repayment plan, loan modification or forbearance may let you stay.</span></div>
+      <div class="opt"><b>Refinance or catch up</b><span>Paying what's past due before the sale can stop the foreclosure.</span></div>
+      <div class="opt"><b>Sell with an agent</b><span>Listing on the open market can bring the highest price if there's time.</span></div>
+      <div class="opt"><b>Sell directly to us</b><span>We may be able to buy as-is, and in some cases take over your existing loan payments and catch up what's behind. Every term is in writing, and you can review it with anyone you trust before signing.</span></div>
+    </div>
+    <p style="font-size:14px;color:var(--ink2);margin-bottom:0">Not every option fits every home. If we take over payments on your existing loan, the loan stays in your name until it's paid off or refinanced, so we'll explain how that works and what protects you before anything is signed.</p>
+  </div>
+
+  <div class="card help">
+    <h2>Free, independent help</h2>
+    <p style="margin:0">The <b>Colorado Foreclosure Hotline: 1-877-601-HOPE (4673)</b> connects homeowners with free HUD-approved housing counselors. We encourage you to talk with them or an attorney before deciding anything.</p>
+  </div>
+
+  <div class="card" id="form">
+    <div id="formBox">
+      <h2>Tell us about your situation</h2>
+      <p style="margin:0;color:var(--ink2);font-size:15px">We'll reach out to talk, usually within a day. Sharing info here doesn't commit you to anything.</p>
+      <form id="f" novalidate>
+        <div class="row"><div><label for="name">Your name *</label><input id="name" autocomplete="name" required></div>
+          <div><label for="phone">Phone</label><input id="phone" type="tel" autocomplete="tel"></div></div>
+        <label for="email">Email</label><input id="email" type="email" autocomplete="email">
+        <label for="address">Property address *</label><input id="address" placeholder="123 Main St, Pueblo, CO 81004" autocomplete="street-address" required>
+        <div class="row">
+          <div><label for="behind">Months behind</label><select id="behind"><option value="">Choose…</option><option>Not behind yet</option><option>1–2 months</option><option>3–5 months</option><option>6+ months</option><option>Sale date is set</option></select></div>
+          <div><label for="goal">What would help most?</label><select id="goal"><option value="">Choose…</option><option>Keep the home</option><option>Sell and move on</option><option>Someone to take over payments</option><option>Not sure yet</option></select></div>
+        </div>
+        <div class="row">
+          <div><label for="balance">About how much is owed? (optional)</label><input id="balance" inputmode="decimal" placeholder="$"></div>
+          <div><label for="payment">Monthly payment (optional)</label><input id="payment" inputmode="decimal" placeholder="$"></div>
+        </div>
+        <label for="message">Anything else? (optional)</label><textarea id="message" rows="3"></textarea>
+        <input class="hp" id="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <label class="consent"><input type="checkbox" id="consent"> <span>It's OK to contact me about my property by phone, text or email. I can ask you to stop at any time.</span></label>
+        <button id="go" type="submit">Send</button>
+        <div class="err" id="err"></div>
+      </form>
+    </div>
+    <div class="ok" id="ok"><h2>Thank you, we got it.</h2><p>We'll reach out soon. If your sale date is close, please also call the free Colorado Foreclosure Hotline at <b>1-877-601-HOPE (4673)</b>.</p></div>
+  </div>
+</main>
+<footer class="wrap" id="foot">We are real estate investors, not a lender, attorney or government agency. Information you send is used only to contact you about your property.</footer>
+<script>
+const $ = s => document.querySelector(s);
+const ref = new URLSearchParams(location.search).get("ref") || "";
+fetch("/api/settings").then(r => r.ok ? r.json() : null).then(d => {
+  const s = d && d.settings; if (!s) return;
+  if (s.company) { $("#brand").textContent = s.company; document.title = `${s.company}: Behind on your mortgage?`; }
+  if (s.phone) { const a = $("#callTop"); a.textContent = "Call or text " + s.phone; a.href = "tel:" + s.phone.replace(/[^0-9+]/g, ""); }
+  $("#foot").textContent = `${[s.senderName, s.company].filter(Boolean).join(", ")}${s.phone ? " · " + s.phone : ""}${s.email ? " · " + s.email : ""}. We are real estate investors, not a lender, attorney or government agency. Information you send is used only to contact you about your property.`;
+}).catch(() => {});
+$("#f").onsubmit = async e => {
+  e.preventDefault(); $("#err").textContent = "";
+  const v = id => $("#" + id).value.trim();
+  const body = {ref, name: v("name"), phone: v("phone"), email: v("email"), address: v("address"), behind: v("behind"), goal: v("goal"),
+    balance: v("balance"), payment: v("payment"), message: v("message"), website: v("website"), consent: $("#consent").checked};
+  if (!body.name || !body.address || (!body.phone && !body.email)) return $("#err").textContent = "Please add your name, the property address, and a phone or email.";
+  if (!body.consent) return $("#err").textContent = "Please check the box so we can contact you.";
+  $("#go").disabled = true; $("#go").textContent = "Sending…";
+  try {
+    const r = await fetch("/api/inquiry", {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(body)});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || "Something went wrong. Please try again.");
+    $("#formBox").style.display = "none"; $("#ok").style.display = "block";
+  } catch (err) { $("#err").textContent = err.message; $("#go").disabled = false; $("#go").textContent = "Send"; }
+};
+</script>
+</body>
+</html>

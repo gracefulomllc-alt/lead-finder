@@ -13,7 +13,7 @@ const STATUSES = ["New", "Reviewed", "Contacted", "Offer Made", "Dead"];
 const FIELDS = [
   "amountOwed", "address", "city", "county", "zip", "leadType", "keyDate",
   "status", "estValue", "propertyType", "owner", "ownerMailing", "caseNumber",
-  "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen", "amountOwedSource", "estValueSource", "phone", "lastLetter",
+  "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen", "amountOwedSource", "estValueSource", "phone", "lastLetter", "loanDate", "interestRate", "deal", "checklist", "payments", "hot", "email", "source",
 ];
 
 const json = (body, status = 200) =>
@@ -42,6 +42,10 @@ function clean(input) {
   }
   if (out.status && !STATUSES.includes(out.status)) delete out.status;
   if (out.saved !== undefined) out.saved = out.saved === true || out.saved === "true";
+  if (out.hot !== undefined) out.hot = out.hot === true || out.hot === "true";
+  for (const k of ["deal", "checklist"]) if (out[k] !== undefined && (typeof out[k] !== "object" || Array.isArray(out[k]) || JSON.stringify(out[k]).length > 8000)) delete out[k];
+  if (out.payments !== undefined && (!Array.isArray(out.payments) || JSON.stringify(out.payments).length > 40000)) delete out.payments;
+  if (out.interestRate !== undefined) { const r = Number(String(out.interestRate).replace(/[%\s]/g, "")); out.interestRate = Number.isFinite(r) && r > 0 && r < 30 ? r : null; }
   return out;
 }
 
@@ -54,6 +58,7 @@ async function load(store) {
     for (const l of existing) {
       const sd = seedById.get(l.id);
       if (sd && !l.amountOwedSource && sd.amountOwedSource && l.amountOwed === sd.amountOwed) { l.amountOwedSource = sd.amountOwedSource; changed = true; }
+      if (sd && !l.loanDate && sd.loanDate) { l.loanDate = sd.loanDate; changed = true; }
       if (typeof l.notes === "string" && l.notes.includes(" (719-545-0821)")) { l.notes = l.notes.replace(" (719-545-0821)", ""); changed = true; }
     }
     if (changed) await store.setJSON(KEY, existing);

@@ -61,6 +61,7 @@ main{max-width:1400px;margin:0 auto;padding:0 0 calc(var(--nav) + 20px)}
 .ph svg{width:44px;height:44px;opacity:.7}
 .tag{position:absolute;top:10px;left:10px;background:#fff;color:var(--ink);font-size:12px;font-weight:700;padding:3px 8px;border-radius:4px;display:flex;align-items:center;gap:5px;box-shadow:0 1px 3px #0003}
 .tag i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.subto{position:absolute;left:10px;bottom:10px;color:#fff;font-size:12px;font-weight:800;padding:3px 8px;border-radius:4px;box-shadow:0 1px 3px #0004}
 .newtag{position:absolute;top:10px;left:auto;right:52px;background:var(--blue);color:#fff;font-size:11px;font-weight:800;padding:3px 7px;border-radius:4px;letter-spacing:.3px}
 .heart{position:absolute;top:6px;right:6px;width:38px;height:38px;border-radius:50%;border:0;background:#0000;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .heart svg{width:28px;height:28px;filter:drop-shadow(0 1px 2px #0008)}
@@ -161,10 +162,21 @@ textarea.field{min-height:90px;resize:vertical}
 .flag{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;margin-top:8px}
 .f-abs{background:#eef5ff;color:var(--blue)}.f-occ{background:#f1f3f7;color:var(--ink2)}
 .svbtn{position:absolute;right:10px;bottom:10px;background:#fff;border:0;border-radius:8px;padding:7px 11px;font-weight:700;font-size:13px;box-shadow:0 1px 4px #0005;text-decoration:none;color:var(--ink)}
+details.tool{border:1px solid var(--line);border-radius:12px;margin-top:12px;background:#fff}
+details.tool summary{padding:13px 14px;font-weight:800;cursor:pointer;font-size:15px}
+details.tool>div{padding:0 14px 14px}
+.ckrow{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line);font-size:14px}
+.ckrow input{margin-top:3px;width:18px;height:18px}
+.ckrow small{display:block;color:var(--muted)}
+.calcout{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:12px}
+.calcout div{background:#fafbfc;padding:9px 11px;font-size:13px;color:var(--ink2)}
+.calcout b{display:block;font-size:17px;color:var(--ink)}
+.ptable{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+.ptable td,.ptable th{border-top:1px solid var(--line);padding:7px 4px;text-align:left}
 .overall{display:flex;align-items:center;gap:8px;font-size:14px;margin-top:10px;padding:10px 12px;border-radius:10px;background:#f6f8fb}
 /* map pins */
 .pin{background:var(--blue);color:#fff;font-weight:800;font-size:12px;padding:3px 7px;border-radius:6px;border:2px solid #fff;box-shadow:0 1px 4px #0006;white-space:nowrap;transform:translate(-50%,-100%);display:inline-block}
-.pin.pre{background:var(--red)}.pin.tax{background:var(--orange)}.pin.both{background:var(--purple)}
+.pin.inb{background:var(--green)}.pin.pre{background:var(--red)}.pin.tax{background:var(--orange)}.pin.both{background:var(--purple)}
 .leaflet-div-icon{background:none;border:0}
 </style>
 </head>
@@ -181,11 +193,11 @@ textarea.field{min-height:90px;resize:vertical}
     <select class="fbtn" id="fCounty"><option value="">All counties</option></select>
     <select class="fbtn" id="fCity"><option value="">All cities</option></select>
     <select class="fbtn" id="fZip"><option value="">All ZIPs</option></select>
-    <select class="fbtn" id="fType"><option value="">Lead type</option><option>Pre-foreclosure</option><option>Tax-delinquent</option><option>Both</option></select>
+    <select class="fbtn" id="fType"><option value="">Lead type</option><option>Pre-foreclosure</option><option>Tax-delinquent</option><option>Both</option><option>Inbound</option></select>
     <select class="fbtn" id="fMax"><option value="">Max owed</option><option value="100000">Under $100K</option><option value="150000">Under $150K</option><option value="200000">Under $200K</option><option value="300000">Under $300K</option><option value="400000">Under $400K</option></select>
     <select class="fbtn" id="fProp"><option value="">Home type</option><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select>
     <select class="fbtn" id="fStatus"><option value="active">Status: Active</option><option value="">Status: All</option><option>New</option><option>Reviewed</option><option>Contacted</option><option>Offer Made</option><option value="saved">Saved ♥</option><option>Dead</option></select>
-    <select class="fbtn" id="fSort"><option value="owedAsc">Sort: Cheapest owed</option><option value="owedDesc">Sort: Most owed</option><option value="equityDesc">Sort: Most equity</option><option value="dateAsc">Sort: Key date</option><option value="newest">Sort: Newest</option></select>
+    <select class="fbtn" id="fSort"><option value="subto">Sort: Best Sub-To fit</option><option value="owedAsc">Sort: Cheapest owed</option><option value="owedDesc">Sort: Most owed</option><option value="equityDesc">Sort: Most equity</option><option value="dateAsc">Sort: Key date</option><option value="newest">Sort: Newest</option></select>
   </div>
 </div>
 
@@ -234,6 +246,7 @@ textarea.field{min-height:90px;resize:vertical}
 <div class="toast" id="toast"><span id="toastMsg"></span><button id="toastUndo" hidden>UNDO</button></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/qrcode-generator@1.4.4/qrcode.js"></script>
 <script>
 const CITY_COUNTY = {"Arvada":"Jefferson","Lakewood":"Jefferson","Golden":"Jefferson","Littleton":"Arapahoe","Loveland":"Larimer","Fort Collins":"Larimer","Estes Park":"Larimer","Greeley":"Weld","Windsor":"Weld","Evans":"Weld","Longmont":"Boulder","Boulder":"Boulder","Lafayette":"Boulder","Louisville":"Boulder","Denver":"Denver","Aurora":"Arapahoe","Centennial":"Arapahoe","Englewood":"Arapahoe","Westminster":"Adams","Thornton":"Adams","Northglenn":"Adams","Brighton":"Adams","Commerce City":"Adams","Broomfield":"Broomfield","Castle Rock":"Douglas","Parker":"Douglas","Highlands Ranch":"Douglas","Pueblo":"Pueblo","Pueblo West":"Pueblo","Colorado Springs":"El Paso","Fountain":"El Paso","Security-Widefield":"El Paso","Monument":"El Paso","Woodland Park":"Teller","Cañon City":"Fremont","Florence":"Fremont","Trinidad":"Las Animas","Walsenburg":"Huerfano","La Junta":"Otero","Rocky Ford":"Otero","Lamar":"Prowers","Alamosa":"Alamosa","Grand Junction":"Mesa","Montrose":"Montrose","Durango":"La Plata","Sterling":"Logan","Fort Morgan":"Morgan"};
 const CO_COUNTIES = ["Adams", "Alamosa", "Arapahoe", "Archuleta", "Baca", "Bent", "Boulder", "Broomfield", "Chaffee", "Cheyenne", "Clear Creek", "Conejos", "Costilla", "Crowley", "Custer", "Delta", "Denver", "Dolores", "Douglas", "Eagle", "El Paso", "Elbert", "Fremont", "Garfield", "Gilpin", "Grand", "Gunnison", "Hinsdale", "Huerfano", "Jackson", "Jefferson", "Kiowa", "Kit Carson", "La Plata", "Lake", "Larimer", "Las Animas", "Lincoln", "Logan", "Mesa", "Mineral", "Moffat", "Montezuma", "Montrose", "Morgan", "Otero", "Ouray", "Park", "Phillips", "Pitkin", "Prowers", "Pueblo", "Rio Blanco", "Rio Grande", "Routt", "Saguache", "San Juan", "San Miguel", "Sedgwick", "Summit", "Teller", "Washington", "Weld", "Yuma"];
@@ -246,8 +259,8 @@ const money = n => (n == null || n === "" || isNaN(n)) ? "—" : "$" + Math.roun
 const short = n => n == null ? "?" : n >= 1e6 ? "$" + (n/1e6).toFixed(1) + "M" : "$" + Math.round(n/1000) + "K";
 const fmtDate = d => { if (!d) return "—"; const t = new Date(String(d).length === 10 ? d + "T12:00:00" : d); return isNaN(t) ? esc(d) : t.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); };
 const equity = l => (l.estValue != null && l.amountOwed != null) ? l.estValue - l.amountOwed : null;
-const typeColor = t => t === "Tax-delinquent" ? "var(--orange)" : t === "Both" ? "var(--purple)" : "var(--red)";
-const typeCls = t => t === "Tax-delinquent" ? "tax" : t === "Both" ? "both" : "pre";
+const typeColor = t => t === "Inbound" ? "var(--green)" : t === "Tax-delinquent" ? "var(--orange)" : t === "Both" ? "var(--purple)" : "var(--red)";
+const typeCls = t => t === "Inbound" ? "inb" : t === "Tax-delinquent" ? "tax" : t === "Both" ? "both" : "pre";
 const fullAddr = l => `${l.address.replace(/\s*\(.*?\)\s*/g," ")}, ${l.city || ""}, CO ${l.zip || ""}`.trim();
 
 /* ---------- storage + API ---------- */
@@ -312,8 +325,36 @@ function filtered(opts = {}){
     equityDesc:(a,b)=>(equity(b)??-big)-(equity(a)??-big),
     dateAsc:(a,b)=>String(a.keyDate||"9999").localeCompare(String(b.keyDate||"9999")),
     newest:(a,b)=>String(b.firstSeen||"").localeCompare(String(a.firstSeen||"")),
-  }[sort]);
+    subto:(a,b)=>subTo(b).score-subTo(a).score,
+  }[sort]).sort((a,b) => (b.hot && b.status !== "Dead" ? 1 : 0) - (a.hot && a.status !== "Dead" ? 1 : 0));
 }
+
+/* ---------- Sub-To fit score (0-100): how good a candidate for taking over the existing loan ---------- */
+function subTo(l){
+  const parts = [];
+  const rate = l.interestRate ?? l.deal?.rate;
+  const yr = l.loanDate ? +String(l.loanDate).slice(0, 4) : null;
+  if (rate) {
+    const p = rate <= 4 ? 35 : rate <= 5 ? 25 : rate <= 6 ? 12 : 0;
+    parts.push([p, 35, `Interest rate ${rate}%` + (p >= 25 ? " (low, worth keeping)" : p ? " (so-so)" : " (high, less reason to keep it)")]);
+  } else if (yr) {
+    const p = yr >= 2020 && yr <= 2022 ? 32 : yr >= 2012 && yr <= 2019 ? 22 : yr === 2023 || yr === 2024 ? 6 : 12;
+    parts.push([p, 35, `Loan from ${yr}` + (p >= 30 ? ": rates were about 3% then" : p >= 20 ? ": rates were about 3.5–4.5%" : p <= 6 ? ": rates were high (6–7%+)" : "")]);
+  } else parts.push([10, 35, "Loan date/rate unknown: ask the seller or check the deed of trust"]);
+  const ltv = (l.amountOwed != null && l.estValue) ? l.amountOwed / l.estValue : null;
+  if (ltv == null) parts.push([10, 25, "Owed vs value unknown"]);
+  else { const p = ltv > 1 ? 4 : ltv > 0.9 ? 18 : ltv >= 0.6 ? 25 : 12;
+    parts.push([p, 25, `Owes about ${Math.round(ltv * 100)}% of value` + (p === 25 ? ": thin equity, sub-to often fits" : ltv < 0.6 ? ": lots of equity, seller may prefer a sale" : ltv > 1 ? ": underwater" : "")]); }
+  const days = l.keyDate ? Math.round((new Date(l.keyDate + "T12:00:00") - new Date()) / 864e5) : null;
+  if (days == null) parts.push([6, 20, "No sale date known"]);
+  else if (days < 0) parts.push([4, 20, "Key date has passed: confirm it's still active"]);
+  else parts.push([days >= 21 ? 20 : days >= 7 ? 13 : 6, 20, `${days} days until key date` + (days < 7 ? ": very tight" : "")]);
+  const t = l.leadType;
+  parts.push(t === "Inbound" ? [20, 20, "Seller reached out to you"] : t === "Pre-foreclosure" || t === "Both" ? [12, 20, "In foreclosure: motivated, has a mortgage"] : [5, 20, "Tax-delinquent: may not have a mortgage to take over"]);
+  const score = Math.min(100, parts.reduce((a, p) => a + p[0], 0));
+  return {score, parts, label: score >= 70 ? "Strong" : score >= 50 ? "Possible" : "Weak"};
+}
+const subColor = s => s >= 70 ? "var(--green)" : s >= 50 ? "#b7791f" : "#9a9aa3";
 
 /* ---------- cards ---------- */
 function cardHTML(l, mode){
@@ -325,7 +366,8 @@ function cardHTML(l, mode){
   ].filter(Boolean).join('<span class="sep">|</span>');
   return `<article class="card" data-id="${esc(l.id)}">
     <div class="photo">${photoHTML(l)}
-      <span class="tag"><i style="background:${typeColor(l.leadType)}"></i>${esc(l.leadType || "Lead")}</span>
+      <span class="tag"><i style="background:${typeColor(l.leadType)}"></i>${l.hot ? "🔥 " : ""}${esc(l.leadType === "Inbound" ? "Seller reached out" : l.leadType || "Lead")}</span>
+      <span class="subto" style="background:${subColor(subTo(l).score)}">Sub-To ${subTo(l).score}</span>
       ${st === "New" && mode !== "feed" ? `<span class="newtag">NEW</span>` : ""}
       <button class="heart" data-heart="${esc(l.id)}" aria-label="Save">${heartSVG(l.saved)}</button>
     </div>
@@ -379,7 +421,7 @@ function corridorInfo(l){
     for (let i = 0; i < pts.length - 1; i++) { const m = milesToSegment([l.lat, l.lng], pts[i], pts[i+1]); if (m < best.miles) best = {miles: m, hwy}; }
   return {inside: best.miles <= CORRIDOR_MILES, ...best};
 }
-const inCorridor = l => corridorInfo(l).inside;
+const inCorridor = l => l.leadType === "Inbound" || corridorInfo(l).inside;
 /* ---------- render ---------- */
 const countyOf = l => l.county || CITY_COUNTY[l.city] || "";
 let place = (() => { try { return JSON.parse(localStorage.getItem("lf_place")) || {}; } catch { return {}; } })();
@@ -568,6 +610,8 @@ function openLead(id){
         <div class="nm">${esc(l.owner || "Owner not on file")}</div>
         <div class="line">Mailing address: <b>${esc(l.ownerMailing || "Not on file")}</b></div>
         <div class="line">Phone: ${l.phone ? `<a href="tel:${esc(l.phone.replace(/[^0-9+]/g,""))}"><b>${esc(l.phone)}</b></a>` : `<b>None yet</b>, add one below if the owner gives it to you`}</div>
+        ${l.email ? `<div class="line">Email: <a href="mailto:${esc(l.email)}"><b>${esc(l.email)}</b></a></div>` : ""}
+        ${l.source ? `<div class="line">Came from: <b>${esc(l.source)}</b></div>` : ""}
         ${l.lastLetter ? `<div class="line">Last letter: <b>${esc(l.lastLetter)}</b></div>` : ""}
         ${abs === true ? `<span class="flag f-abs">Absentee owner: mail goes somewhere else</span>` : abs === false ? `<span class="flag f-occ">Owner gets mail at the property</span>` : ""}
         ${l.lender ? `<div class="line">Lender: <b>${esc(l.lender)}</b></div>` : ""}
@@ -593,6 +637,15 @@ function openLead(id){
           <div class="val" style="font-size:16px">${fmtDate(l.keyDate)}</div>
           <div class="why">${l.amountOwedSource === "original-loan" ? "Court response deadline. The actual sale date is usually weeks later. Confirm it with the Public Trustee." : "Sale date or deadline from the record."}</div></div>
       </div>
+
+      <div class="sect">Sub-To fit: <span style="color:${subColor(subTo(l).score)}">${subTo(l).score} · ${subTo(l).label}</span></div>
+      <div class="nums">${subTo(l).parts.map(p => `<div class="num"><div class="row"><span class="lbl">${esc(p[2])}</span><b>${p[0]}/${p[1]}</b></div></div>`).join("")}</div>
+      <div class="grid2"><div><label>Loan date (deed of trust)</label><input class="field" type="date" id="eLoanDate" value="${esc(l.loanDate || "")}"></div>
+        <div><label>Interest rate %</label><input class="field" id="eRate" inputmode="decimal" value="${l.interestRate ?? ""}" placeholder="e.g. 3.25"></div></div>
+
+      <details class="tool" id="calcBox"><summary>🧮 Sub-to deal calculator</summary><div id="calc"></div></details>
+      <details class="tool"><summary>✅ Deal checklist <span id="ckCount"></span></summary><div id="ck"></div></details>
+      <details class="tool"><summary>💵 Loan payment tracker <span id="payCount"></span></summary><div id="pay"></div></details>
 
       <div class="sect">Pipeline</div>
       <div class="seg" id="seg">${STATUSES.map(s => `<button data-s="${s}" class="${s === st ? "on" : ""}">${s === "Offer Made" ? "Offer" : s}</button>`).join("")}</div>
@@ -621,7 +674,7 @@ function openLead(id){
   $("#seg").onclick = e => { const b = e.target.closest("[data-s]"); if (!b) return;
     $("#seg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); patch(l, {status: b.dataset.s}, "Moved to " + b.dataset.s); };
   $("#save").onclick = async () => {
-    const ch = {phone: $("#ePhone").value.trim(), ownerMailing: $("#eMail").value.trim(), notes: $("#eNotes").value, estValue: $("#eVal").value, amountOwed: $("#eOwed").value,
+    const ch = {loanDate: $("#eLoanDate").value, interestRate: $("#eRate").value, phone: $("#ePhone").value.trim(), ownerMailing: $("#eMail").value.trim(), notes: $("#eNotes").value, estValue: $("#eVal").value, amountOwed: $("#eOwed").value,
       amountOwedSource: $("#eOwedSrc").value, estValueSource: $("#eValSrc").value};
     const num = v => v === "" ? null : Number(String(v).replace(/[$,\s]/g, ""));
     if (num(ch.amountOwed) !== l.amountOwed && !ch.amountOwedSource) ch.amountOwedSource = "manual";
@@ -631,6 +684,7 @@ function openLead(id){
     toast("Saved"); closeModal();
   };
   currentLead = l;
+  renderCalc(l); renderChecklist(l); renderPayments(l);
   $("#letter").onclick = () => showOut(letterText(l), true);
   $("#script").onclick = () => showOut(scriptText(l), false);
   $("#del").onclick = async () => {
@@ -639,6 +693,95 @@ function openLead(id){
     catch (e) { toast("Delete failed: " + e.message); }
   };
 }
+/* ---------- sub-to deal tools ---------- */
+const N = v => { const n = Number(String(v ?? "").replace(/[$,%\s]/g, "")); return Number.isFinite(n) ? n : 0; };
+function pmt(balance, ratePct, yearsLeft){ const r = ratePct / 1200, n = yearsLeft * 12; if (!balance || !n) return 0; return r ? balance * r / (1 - Math.pow(1 + r, -n)) : balance / n; }
+function renderCalc(l){
+  const d = {balance: l.amountOwedSource === "payoff" ? l.amountOwed : "", rate: l.interestRate ?? "", yearsLeft: "", pi: "", taxes: "", insurance: "", hoa: "",
+    monthsBehind: "", fees: "", sellerCash: "", closing: "", repairs: "", rent: "", reservePct: 15, value: l.estValue ?? "", ...(l.deal || {})};
+  const f = (k, label, ph = "$") => `<div><label>${label}</label><input class="field" data-k="${k}" inputmode="decimal" value="${esc(d[k] ?? "")}" placeholder="${ph}"></div>`;
+  $("#calc").innerHTML = `<p style="font-size:13px;color:var(--muted);margin:0 0 4px">Use the seller's mortgage statement or the lender's reinstatement quote for real numbers.</p>
+    <div class="grid2">${f("balance","Loan balance")}${f("rate","Interest rate %","%")}</div>
+    <div class="grid2">${f("pi","Monthly P&amp;I (blank = calculate)")}${f("yearsLeft","Years left on loan","yrs")}</div>
+    <div class="grid2">${f("taxes","Property tax / month")}${f("insurance","Insurance / month")}</div>
+    <div class="grid2">${f("hoa","HOA / month")}${f("monthsBehind","Months behind","#")}</div>
+    <div class="grid2">${f("fees","Late fees + foreclosure costs")}${f("sellerCash","Cash to seller")}</div>
+    <div class="grid2">${f("closing","Closing / title / attorney")}${f("repairs","Repairs")}</div>
+    <div class="grid2">${f("rent","Expected rent / month")}${f("reservePct","Vacancy + maintenance %","%")}</div>
+    <div class="grid2">${f("value","After-repair value")}<div></div></div>
+    <div id="calcOut"></div>
+    <div class="btns"><button class="btn primary" id="calcSave">Save numbers</button></div>`;
+  const read = () => { const o = {}; $("#calc").querySelectorAll("[data-k]").forEach(i => o[i.dataset.k] = i.value.trim()); return o; };
+  const show = () => {
+    const o = read(), pi = N(o.pi) || pmt(N(o.balance), N(o.rate), N(o.yearsLeft));
+    const piti = pi + N(o.taxes) + N(o.insurance) + N(o.hoa);
+    const reinstate = piti * N(o.monthsBehind) + N(o.fees);
+    const cashIn = reinstate + N(o.sellerCash) + N(o.closing) + N(o.repairs);
+    const reserve = N(o.rent) * N(o.reservePct) / 100, flow = N(o.rent) - piti - reserve;
+    const coc = cashIn > 0 ? flow * 12 / cashIn * 100 : null;
+    const eqty = N(o.value) ? N(o.value) - N(o.balance) - reinstate : null;
+    const c = (v, lbl, good) => `<div>${lbl}<b style="${good === false ? "color:var(--red)" : good ? "color:var(--green)" : ""}">${v}</b></div>`;
+    $("#calcOut").innerHTML = `<div class="calcout">
+      ${c(pi ? money(pi) : "—", "Principal & interest")}${c(piti ? money(piti) : "—", "Total payment (PITI + HOA)")}
+      ${c(money(reinstate), "To catch up (reinstate)")}${c(money(cashIn), "Total cash to close")}
+      ${c(N(o.rent) ? money(flow) : "—", "Monthly cash flow", N(o.rent) ? flow >= 0 : undefined)}${c(coc != null && N(o.rent) ? coc.toFixed(1) + "%" : "—", "Cash-on-cash / yr")}
+      ${c(eqty != null ? money(eqty) : "—", "Equity after catch-up", eqty != null ? eqty >= 0 : undefined)}${c(N(o.rent) && flow > 0 && cashIn ? Math.ceil(cashIn / flow) + " mo" : "—", "Months to earn cash back")}
+    </div>`;
+  };
+  $("#calc").oninput = show; show();
+  $("#calcSave").onclick = async () => { const o = read(); await patch(l, {deal: o, ...(o.rate ? {interestRate: o.rate} : {})}, "Deal numbers saved"); };
+}
+const CHECKLIST = [
+  ["interview", "Seller interview done", "Balance, rate, payment, months behind, lender, liens, what the seller wants"],
+  ["auth", "Seller signed authorization to release loan info", "Lets you talk to their lender and get a reinstatement quote"],
+  ["reinstate", "Reinstatement / payoff figure confirmed in writing", "From the lender or Public Trustee"],
+  ["title", "Title search reviewed", "Other liens, judgments, HOA, back taxes"],
+  ["attorney", "Attorney-reviewed contract ready", "Foreclosure Protection Act–compliant if the home is in foreclosure"],
+  ["notices", "Required notices given to seller", "Notice of cancellation and seller warning, with all terms in writing"],
+  ["signed", "Contract signed", "Date it: the 3-business-day cancellation clock starts"],
+  ["cancel", "3-business-day cancellation period passed", "Don't close or record before this"],
+  ["insurance", "Insurance in place", "New landlord policy; seller's lender listed as required"],
+  ["cured", "Past-due amount paid & foreclosure withdrawn", "Get the Public Trustee withdrawal confirmation"],
+  ["recorded", "Deed recorded", "Keep a copy with the file"],
+  ["autopay", "Loan payments set up and tracked", "Use the payment tracker below every month"],
+];
+function renderChecklist(l){
+  const ck = {...(l.checklist || {})};
+  const done = CHECKLIST.filter(([k]) => ck[k]).length;
+  $("#ckCount").textContent = `(${done}/${CHECKLIST.length})`;
+  $("#ck").innerHTML = CHECKLIST.map(([k, t, h]) => `<label class="ckrow"><input type="checkbox" data-ck="${k}" ${ck[k] ? "checked" : ""}><span>${t}${ck[k] ? ` <span style="color:var(--green);font-weight:700">· ${fmtDate(ck[k])}</span>` : ""}<small>${h}</small></span></label>`).join("")
+    + `<p style="font-size:12px;color:var(--muted)">Not legal advice: have a Colorado real estate attorney set up your contract and process.</p>`;
+  $("#ck").onchange = async e => { const k = e.target.dataset.ck; if (!k) return;
+    if (e.target.checked) ck[k] = new Date().toISOString().slice(0, 10); else delete ck[k];
+    await patch(l, {checklist: ck}); renderChecklist(l); };
+}
+function renderPayments(l){
+  const ps = [...(l.payments || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const total = ps.reduce((a, p) => a + N(p.amount), 0), last = ps[0]?.date;
+  let next = ""; if (last) { const d = new Date(last + "T12:00:00"); d.setMonth(d.getMonth() + 1); next = d.toISOString().slice(0, 10); }
+  $("#payCount").textContent = ps.length ? `(${ps.length})` : "";
+  $("#pay").innerHTML = `<div class="calcout">${[["Total paid", money(total)], ["Payments", ps.length], ["Last paid", fmtDate(last)], ["Next due (est.)", next ? fmtDate(next) : "—"]].map(([a, b]) => `<div>${a}<b>${b}</b></div>`).join("")}</div>
+    <div class="grid2"><div><label>Date paid</label><input class="field" type="date" id="pDate" value="${new Date().toISOString().slice(0, 10)}"></div>
+      <div><label>Amount</label><input class="field" id="pAmt" inputmode="decimal" placeholder="$" value="${esc(l.deal?.pi ? "" : "")}"></div></div>
+    <div class="grid2"><div><label>Confirmation #</label><input class="field" id="pConf"></div><div><label>Paid to / method</label><input class="field" id="pTo" placeholder="Lender, autopay…"></div></div>
+    <div class="btns"><button class="btn primary" id="pAdd">Add payment</button></div>
+    ${ps.length ? `<table class="ptable"><tr><th>Date</th><th>Amount</th><th>Conf #</th><th></th></tr>${ps.map((p, i) => `<tr><td>${fmtDate(p.date)}</td><td>${money(N(p.amount))}</td><td>${esc(p.conf || "")}${p.to ? `<br><small>${esc(p.to)}</small>` : ""}</td><td><button class="btn small" data-del="${i}" style="padding:3px 8px">✕</button></td></tr>`).join("")}</table>` : ""}
+    <p style="font-size:12px;color:var(--muted)">Keep proof of every payment. It protects the seller's credit and protects you.</p>`;
+  $("#pAdd").onclick = async () => {
+    const p = {date: $("#pDate").value, amount: N($("#pAmt").value), conf: $("#pConf").value.trim(), to: $("#pTo").value.trim()};
+    if (!p.date || !p.amount) return toast("Add a date and amount");
+    await patch(l, {payments: [...(l.payments || []), p]}, "Payment logged"); renderPayments(l);
+  };
+  $("#pay").querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm("Remove this payment from the log?")) return;
+    const target = ps[+b.dataset.del]; await patch(l, {payments: (l.payments || []).filter(p => p !== target)}); renderPayments(l);
+  });
+}
+
+/* ---------- QR codes to the seller page ---------- */
+const sellUrl = l => location.origin + "/sell" + (l && l.id ? "?ref=" + encodeURIComponent(l.id) : "");
+function qrDataURL(url){ try { if (typeof qrcode === "undefined") return ""; const q = qrcode(0, "M"); q.addData(url); q.make(); return q.createDataURL(4, 2); } catch { return ""; } }
+
 const LEGAL = `<div class="warn"><b>Before you send or knock:</b> If the home is in foreclosure, Colorado's Foreclosure Protection Act (C.R.S. 6-1-1101 and after) can apply to buying it. It requires a written contract with required notices, gives the owner a right to cancel, and bans misleading statements. Have a real estate attorney review your contract and letter before your first deal.</div>`;
 let currentLead = null;
 function showOut(text, isLetter){
@@ -678,7 +821,7 @@ If a direct sale makes sense for you, I can:
   • Pay closing costs and work with your timeline
   • Put every term in writing so you can review it with anyone you trust
 
-${pre ? "Free, independent help is also available from the Colorado Foreclosure Hotline at 1-877-601-HOPE (4673), which connects homeowners with HUD-approved housing counselors. I encourage you to talk with them or an attorney before deciding anything.\n\n" : ""}If you'd like to talk, ${contactLine()}. If you're not interested, I won't keep contacting you.
+${pre ? "Free, independent help is also available from the Colorado Foreclosure Hotline at 1-877-601-HOPE (4673), which connects homeowners with HUD-approved housing counselors. I encourage you to talk with them or an attorney before deciding anything.\n\n" : ""}If you'd like to talk, ${contactLine()}, or scan the code on this letter to tell me about your situation online. If you're not interested, I won't keep contacting you.
 
 Respectfully,
 
@@ -727,7 +870,8 @@ function printPage(l, text){
     <div class="from">${senderBlock()}</div>
     <div class="to">${rc ? `${esc(rc.name)}<br>${esc(rc.line1)}<br>${esc(rc.city)}, ${esc(rc.state)} ${esc(rc.zip)}` : "&nbsp;"}</div>
     <div class="date">${todayLong()}</div>
-    <div class="txt">${esc(text)}</div></section>`;
+    <div class="txt">${esc(text)}</div>
+    ${qrDataURL(sellUrl(l)) ? `<div class="qr"><img src="${qrDataURL(sellUrl(l))}" alt=""><span>Scan to tell us<br>your situation</span></div>` : ""}</section>`;
 }
 function printLetters(items){
   const w = window.open("", "_blank");
@@ -739,12 +883,14 @@ function printLetters(items){
     .to{position:absolute;top:2.05in;left:0.9in;width:3.8in;font-size:11.5pt;line-height:1.35}
     .date{position:absolute;top:3.45in;left:0.85in}
     .txt{position:absolute;top:3.95in;left:0.85in;right:0.85in;white-space:pre-wrap;font-size:11.5pt;line-height:1.45}
+    .qr{position:absolute;right:0.85in;top:0.5in;text-align:center;font:9pt/1.2 Arial,sans-serif;color:#333}.qr img{width:1.05in;height:1.05in;display:block;margin:0 auto 3px;image-rendering:pixelated}
   </style></head><body>${items.map(i => printPage(i.l, i.text)).join("")}</body></html>`);
   w.document.close(); setTimeout(() => w.print(), 300);
 }
 // HTML for Lob: Lob prints both addresses in the top ~3.25" of page 1, so the letter starts below that.
-function lobHTML(text){
-  return `<html><head><meta charset="UTF-8"><style>body{margin:0}.p{padding:3.4in 0.85in 0.5in;font:11.5pt/1.45 Georgia,serif;white-space:pre-wrap}</style></head><body><div class="p">${esc(todayLong())}\n\n${esc(text)}</div></body></html>`;
+function lobHTML(text, l){
+  const qr = qrDataURL(sellUrl(l));
+  return `<html><head><meta charset="UTF-8"><style>body{margin:0}.p{padding:3.4in 0.85in 0.5in;font:11pt/1.4 Georgia,serif;white-space:pre-wrap}.q{text-align:right;padding:0 0.85in;font:9pt Arial,sans-serif}.q img{width:0.9in;height:0.9in}</style></head><body><div class="p">${esc(todayLong())}\n\n${esc(text)}</div>${qr ? `<div class="q"><img src="${qr}"><br>Scan to tell us your situation</div>` : ""}</body></html>`;
 }
 async function mailLetters(items){
   if (!mailInfo.enabled) return openModal(`<div class="pad"><div class="dprice" style="font-size:22px">Set up mailing</div>
@@ -774,7 +920,7 @@ async function mailLetters(items){
     try {
       const r = await api("POST", {pin, letters: ready.map(x => ({leadId: x.l.id,
         to: {name: x.rc.name, address_line1: x.rc.line1, address_city: x.rc.city, address_state: x.rc.state, address_zip: x.rc.zip},
-        html: lobHTML(x.text)}))}, null, "/api/mail");
+        html: lobHTML(x.text, x.l)}))}, null, "/api/mail");
       let ok = 0; const errs = [];
       for (const res of r.results) {
         const l = leads.find(x => x.id === res.leadId); if (!l) continue;
@@ -821,6 +967,7 @@ function askKey(bad){
 $("#menuBtn").onclick = () => {
   openModal(`<div class="pad"><div class="dprice" style="font-size:22px">More</div>
     <div class="btns" style="flex-direction:column;align-items:stretch">
+      <button class="btn" id="mSell">🔗 Your seller page (link + QR)</button>
       <button class="btn" id="mSettings">✉️ Letter settings (your name, phone, return address)</button>
       <button class="btn" id="mPrintAll">🖨 Print letters for all Saved ♥ leads</button>
       <button class="btn" id="mMailAll">📬 Mail letters to all Saved ♥ leads${mailInfo.enabled ? (mailInfo.mode === "test" ? " (test mode)" : "") : " (set up)"}</button>
@@ -840,6 +987,12 @@ $("#menuBtn").onclick = () => {
   };
   $("#mImport").onclick = importSheet;
   $("#mSettings").onclick = openSettings;
+  $("#mSell").onclick = () => { const u = sellUrl(null), q = qrDataURL(u);
+    openModal(`<div class="pad"><div class="dprice" style="font-size:22px">Your seller page</div>
+      <p style="color:var(--ink2)">Homeowners who fill this out show up in your <b>New</b> feed as 🔥 <b>Seller reached out</b>. Every letter you print or mail also gets its own QR code to this page, so you'll know which letter they came from.</p>
+      <div style="text-align:center">${q ? `<img src="${q}" style="width:180px;height:180px;image-rendering:pixelated">` : ""}<div style="word-break:break-all;font-weight:700;margin-top:6px">${esc(u)}</div></div>
+      <div class="btns"><a class="btn primary" href="${esc(u)}" target="_blank" rel="noopener">Open page</a><button class="btn" id="cpy">Copy link</button><button class="btn" id="cls">Close</button></div></div>`);
+    $("#cpy").onclick = () => navigator.clipboard?.writeText(u).then(() => toast("Link copied")); $("#cls").onclick = closeModal; };
   $("#mPrintAll").onclick = () => { const s = savedLeads(); if (!s.length) return toast("Save ♥ some leads first"); printLetters(s.map(l => ({l, text: letterText(l)}))); };
   $("#mMailAll").onclick = () => { const s = savedLeads(); if (!s.length && mailInfo.enabled) return toast("Save ♥ some leads first"); mailLetters(s.map(l => ({l, text: letterText(l)}))); };
 };
