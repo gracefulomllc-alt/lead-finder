@@ -631,16 +631,20 @@ function drawMap(rows){
 let geoBusy = false;
 async function geocodeQueue(){
   if (geoBusy) return; geoBusy = true;
+  // save pins in small batches (one write per ~20 pins instead of one per pin)
+  let batch = [];
+  const flush = () => { if (!batch.length) return; const b = batch; batch = []; api("POST", {leads: b}).catch(()=>{}); };
   for (const l of leads.filter(l => (l.lat == null || l.lng == null) && l.address && !l._geoFail)) {
     try {
       const q = encodeURIComponent(fullAddr(l));
       const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${q}`);
       const d = await r.json();
-      if (d[0]) { l.lat = +d[0].lat; l.lng = +d[0].lon; api("PATCH", {lat:l.lat, lng:l.lng}, l.id).catch(()=>{}); if (view === "search") drawMap(filtered()); }
+      if (d[0]) { l.lat = +d[0].lat; l.lng = +d[0].lon; batch.push({id:l.id, address:l.address, lat:l.lat, lng:l.lng}); if (batch.length >= 20) flush(); if (view === "search" && batch.length % 5 === 0) drawMap(filtered()); }
       else l._geoFail = true;
     } catch { l._geoFail = true; }
     await new Promise(r => setTimeout(r, 1100));
   }
+  flush();
   geoBusy = false;
 }
 
