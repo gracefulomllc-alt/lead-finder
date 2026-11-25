@@ -19,7 +19,7 @@ const FIELDS = [
 const json = (body, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "content-type": "application/json", "cache-control": "no-store" },
+    headers: { "content-type": "application/json", "cache-control": "no-store", "access-control-allow-origin": "*" },
   });
 
 const norm = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
