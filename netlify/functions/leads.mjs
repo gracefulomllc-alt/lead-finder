@@ -30,6 +30,17 @@ export function leadId(l) {
   return `${norm(l.county)}-${norm(l.address)}`;
 }
 
+const CITY_FIX = {
+  "ft collins": "Fort Collins", "ft. collins": "Fort Collins", "berthud": "Berthoud", "berthhoud": "Berthoud",
+  "colorado spgs": "Colorado Springs", "co spgs": "Colorado Springs", "coloardo springs": "Colorado Springs", "colo springs": "Colorado Springs",
+  "fredrick": "Frederick", "la salle": "La Salle", "lasalle": "La Salle",
+};
+const fixCity = (c) => {
+  const t = String(c || "").replace(/,+$/, "").replace(/\s+/g, " ").trim();
+  if (!t) return t;
+  return CITY_FIX[t.toLowerCase()] || t.toLowerCase().replace(/\b\w/g, (ch) => ch.toUpperCase());
+};
+
 function clean(input) {
   const out = {};
   for (const f of FIELDS) if (input[f] !== undefined) out[f] = input[f];
@@ -40,6 +51,7 @@ function clean(input) {
       out[n] = Number.isFinite(v) ? v : null;
     }
   }
+  if (out.city !== undefined) out.city = fixCity(out.city);
   if (out.status && !STATUSES.includes(out.status)) delete out.status;
   if (out.saved !== undefined) out.saved = out.saved === true || out.saved === "true";
   if (out.hot !== undefined) out.hot = out.hot === true || out.hot === "true";
@@ -62,6 +74,7 @@ async function load(store) {
       if (sd && !l.amountOwedSource && sd.amountOwedSource && l.amountOwed === sd.amountOwed) { l.amountOwedSource = sd.amountOwedSource; changed = true; }
       if (sd && !l.loanDate && sd.loanDate) { l.loanDate = sd.loanDate; changed = true; }
       if (typeof l.notes === "string" && l.notes.includes(" (719-545-0821)")) { l.notes = l.notes.replace(" (719-545-0821)", ""); changed = true; }
+      if (l.city && fixCity(l.city) !== l.city) { l.city = fixCity(l.city); changed = true; }
     }
     if (changed) await store.setJSON(KEY, existing);
     return existing;
