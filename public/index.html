@@ -179,6 +179,7 @@ details.tool>div{padding:0 14px 14px}
 .pin{background:var(--blue);color:#fff;font-weight:800;font-size:12px;padding:3px 7px;border-radius:6px;border:2px solid #fff;box-shadow:0 1px 4px #0006;white-space:nowrap;transform:translate(-50%,-100%);display:inline-block}
 .pin.inb{background:var(--green)}.pin.pre{background:var(--red)}.pin.tax{background:var(--orange)}.pin.both{background:var(--purple)}
 .leaflet-div-icon{background:none;border:0}
+.esri-credit{position:absolute;right:6px;bottom:4px;font-size:10px;color:#fff;background:#0007;padding:0 4px;border-radius:4px;pointer-events:none}
 </style>
 </head>
 <body>
@@ -304,14 +305,23 @@ function toast(msg, undo){
 
 /* ---------- photos ---------- */
 const houseSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>`;
+function esriAerial(l, w = 640, h = 400){
+  if (l.lat == null || l.lng == null) return "";
+  const dx = 0.00055, dy = dx * h / w * Math.cos(l.lat * Math.PI / 180);
+  return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${l.lng - dx},${l.lat - dy},${l.lng + dx},${l.lat + dy}&bboxSR=4326&imageSR=3857&size=${w},${h}&format=jpg&f=image`;
+}
 function photoHTML(l){
   const street = esc(l.address.replace(/^\d+\s*/,"").replace(/\s*\(.*?\)/,""));
   const ph = `<div class="ph">${houseSVG}<span>${street}</span></div>`;
-  if (!svKey) return ph;
-  const src = `https://maps.googleapis.com/maps/api/streetview?size=640x400&fov=80&return_error_code=true&location=${encodeURIComponent(fullAddr(l))}&key=${encodeURIComponent(svKey)}`;
-  const sat = `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(fullAddr(l))}&zoom=19&size=640x400&maptype=satellite&key=${encodeURIComponent(svKey)}`;
-  // Street View first; if Google has no street photo for this address, fall back to the aerial photo; then the house icon.
-  return ph + `<img loading="lazy" alt="" src="${src}" data-sat="${esc(sat)}" onerror="if(this.dataset.sat){this.src=this.dataset.sat;this.dataset.sat=''}else{this.remove()}">`;
+  const srcs = [];
+  if (svKey) {
+    srcs.push(`https://maps.googleapis.com/maps/api/streetview?size=640x400&fov=80&return_error_code=true&location=${encodeURIComponent(fullAddr(l))}&key=${encodeURIComponent(svKey)}`);
+    srcs.push(`https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(fullAddr(l))}&zoom=19&size=640x400&maptype=satellite&key=${encodeURIComponent(svKey)}`);
+  }
+  const esri = esriAerial(l); if (esri) srcs.push(esri);
+  if (!srcs.length) return ph;
+  // Try Street View, then Google aerial, then free Esri aerial (needs a map pin); fall back to the house icon.
+  return ph + `<img loading="lazy" alt="" src="${esc(srcs[0])}" data-next="${esc(srcs.slice(1).join("|"))}" onload="if(this.src.includes('arcgisonline'))this.insertAdjacentHTML('afterend','<span class=esri-credit>Imagery © Esri</span>')" onerror="const n=this.dataset.next?this.dataset.next.split('|'):[];if(n.length){this.dataset.next=n.slice(1).join('|');this.src=n[0]}else{this.remove()}">`;
 }
 const heartSVG = on => `<svg viewBox="0 0 24 24"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2.1 0 3.6 1.2 4.4 2.6h1.6c.8-1.4 2.3-2.6 4.4-2.6 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z" fill="${on ? "#d8232a" : "#0006"}" stroke="#fff" stroke-width="1.6"/></svg>`;
 
@@ -811,9 +821,10 @@ function howHTML(l){
   return howWeKnow(l).map(([k, t]) => `<div style="display:flex;gap:8px;margin:6px 0;font-size:13px;line-height:1.4"><span title="${HOW_ICON[k][1]}">${HOW_ICON[k][0]}</span><span><b style="font-size:11px;text-transform:uppercase;color:var(--muted)">${HOW_ICON[k][1]}</b><br>${t}</span></div>`).join("");
 }
 function aerialHTML(l){
-  if (!svKey) return "";
-  const src = `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(fullAddr(l))}&zoom=19&size=640x320&scale=2&maptype=satellite&markers=size:small%7C${encodeURIComponent(fullAddr(l))}&key=${encodeURIComponent(svKey)}`;
-  return `<div style="position:relative;margin:10px 0 0"><img src="${src}" alt="Aerial view" loading="lazy" style="width:100%;border-radius:10px;display:block" onerror="this.parentNode.remove()"><span style="position:absolute;left:8px;bottom:8px;background:#000a;color:#fff;font-size:12px;padding:2px 8px;border-radius:8px">Aerial: roof, yard, lot</span></div>`;
+  const g = svKey ? `https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(fullAddr(l))}&zoom=19&size=640x320&scale=2&maptype=satellite&markers=size:small%7C${encodeURIComponent(fullAddr(l))}&key=${encodeURIComponent(svKey)}` : "";
+  const e = esriAerial(l, 1000, 500);
+  const src = g || e; if (!src) return "";
+  return `<div style="position:relative;margin:10px 0 0"><img src="${esc(src)}" data-alt="${esc(g ? e : "")}" alt="Aerial view" loading="lazy" style="width:100%;border-radius:10px;display:block" onerror="if(this.dataset.alt){this.src=this.dataset.alt;this.dataset.alt=''}else{this.parentNode.remove()}"><span style="position:absolute;left:8px;bottom:8px;background:#000a;color:#fff;font-size:12px;padding:2px 8px;border-radius:8px">Aerial: roof, yard, lot</span></div>`;
 }
 
 async function photoCheck(){
