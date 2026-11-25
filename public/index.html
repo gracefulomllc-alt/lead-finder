@@ -305,6 +305,60 @@ function toast(msg, undo){
 
 /* ---------- photos ---------- */
 const houseSVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>`;
+/* ---------- your own house photos ---------- */
+const photoUrl = k => "/api/photos/" + encodeURIComponent(k);
+const coverPhoto = l => { const p = Array.isArray(l.photos) ? l.photos : []; return (p.find(x => x.cover) || p.find(x => x.tag === "outside"))?.key || ""; };
+async function shrinkPhoto(file, max = 1600){
+  let bmp;
+  try { bmp = await createImageBitmap(file, {imageOrientation: "from-image"}); }
+  catch { bmp = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = URL.createObjectURL(file); }); }
+  const w0 = bmp.width, h0 = bmp.height, s = Math.min(1, max / Math.max(w0, h0));
+  const c = document.createElement("canvas"); c.width = Math.round(w0 * s); c.height = Math.round(h0 * s);
+  c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+  return await new Promise(res => c.toBlob(res, "image/jpeg", 0.82));
+}
+async function addPhotos(l, files, tag){
+  files = [...files].filter(f => /^image\//.test(f.type) || /\.(jpe?g|png|heic|webp)$/i.test(f.name)); if (!files.length) return;
+  const status = $("#phStatus"); const added = [];
+  for (let i = 0; i < files.length; i++){
+    if (status) status.textContent = `Uploading ${i + 1} of ${files.length}…`;
+    try {
+      const blob = await shrinkPhoto(files[i]);
+      const r = await fetch(`/api/photos?lead=${encodeURIComponent(l.id)}`, {method: "POST", headers: {"content-type": "image/jpeg", "x-access-key": getKey()}, body: blob});
+      const d = await r.json(); if (!r.ok) throw new Error(d.error || r.statusText);
+      added.push({key: d.key, tag, at: new Date().toISOString()});
+    } catch (e) { toast("A photo didn't upload: " + e.message); }
+  }
+  if (!added.length) { if (status) status.textContent = ""; return; }
+  const photos = [...(l.photos || []), ...added];
+  if (tag === "outside" && !photos.some(p => p.cover)) photos[photos.indexOf(added[0])] = {...added[0], cover: true};
+  await patch(l, {photos}, `${added.length} photo${added.length > 1 ? "s" : ""} added`);
+  if (status) status.textContent = "";
+  renderPhotos(l);
+}
+function renderPhotos(l){
+  const box = $("#myPhotos"); if (!box) return;
+  const ps = Array.isArray(l.photos) ? l.photos : [];
+  const grp = t => ps.filter(p => (p.tag || "outside") === t);
+  const tile = p => `<div style="position:relative"><a href="${photoUrl(p.key)}" target="_blank" rel="noopener"><img src="${photoUrl(p.key)}" loading="lazy" alt="" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block"></a>
+      ${p.cover ? `<span style="position:absolute;left:4px;top:4px;background:#000b;color:#fff;font-size:11px;padding:1px 6px;border-radius:6px">Cover</span>` : ""}
+      <div style="display:flex;gap:4px;margin-top:3px">${p.cover ? "" : `<button class="btn" data-cover="${esc(p.key)}" style="padding:2px 6px;font-size:11px">⭐ Cover</button>`}<button class="btn" data-del="${esc(p.key)}" style="padding:2px 6px;font-size:11px;color:var(--red)">🗑</button></div></div>`;
+  const grid = arr => arr.length ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0">${arr.map(tile).join("")}</div>` : "";
+  box.innerHTML = `<div class="btns" style="margin-top:0">
+      <label class="btn primary" style="cursor:pointer">📷 Outside photo<input type="file" accept="image/*" capture="environment" id="phOut" hidden></label>
+      <label class="btn" style="cursor:pointer">🏠 Inside photos<input type="file" accept="image/*" multiple id="phIn" hidden></label></div>
+    <div id="phStatus" style="font-size:13px;color:var(--muted)"></div>
+    ${grp("outside").length ? `<div style="font-size:12px;color:var(--muted);text-transform:uppercase;margin-top:6px">Outside</div>${grid(grp("outside"))}` : ""}
+    ${grp("inside").length ? `<div style="font-size:12px;color:var(--muted);text-transform:uppercase;margin-top:6px">Inside</div>${grid(grp("inside"))}` : ""}
+    ${ps.length ? "" : `<div style="font-size:13px;color:var(--muted)">Standing at the curb? Tap <b>Outside photo</b> and it becomes this house's picture in your feed. Inside, add as many as you want (you can pick several at once).</div>`}`;
+  $("#phOut").onchange = e => addPhotos(l, e.target.files, "outside");
+  $("#phIn").onchange = e => addPhotos(l, e.target.files, "inside");
+  box.querySelectorAll("[data-cover]").forEach(b => b.onclick = async () => { const k = b.dataset.cover;
+    await patch(l, {photos: ps.map(p => ({...p, cover: p.key === k}))}, "Cover photo set"); renderPhotos(l); });
+  box.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => { if (!confirm("Delete this photo?")) return; const k = b.dataset.del;
+    await patch(l, {photos: ps.filter(p => p.key !== k)}, "Photo deleted"); fetch(photoUrl(k), {method: "DELETE", headers: {"x-access-key": getKey()}}).catch(() => {}); renderPhotos(l); });
+}
+
 function esriAerial(l, w = 640, h = 400){
   if (l.lat == null || l.lng == null) return "";
   const dx = 0.00055, dy = dx * h / w * Math.cos(l.lat * Math.PI / 180);
@@ -314,6 +368,7 @@ function photoHTML(l){
   const street = esc(l.address.replace(/^\d+\s*/,"").replace(/\s*\(.*?\)/,""));
   const ph = `<div class="ph">${houseSVG}<span>${street}</span></div>`;
   const srcs = [];
+  const cov = coverPhoto(l); if (cov) srcs.push(photoUrl(cov));
   if (svKey) {
     srcs.push(`https://maps.googleapis.com/maps/api/streetview?size=640x400&fov=80&return_error_code=true&location=${encodeURIComponent(fullAddr(l))}&key=${encodeURIComponent(svKey)}`);
     srcs.push(`https://maps.googleapis.com/maps/api/staticmap?center=${encodeURIComponent(fullAddr(l))}&zoom=19&size=640x400&maptype=satellite&key=${encodeURIComponent(svKey)}`);
@@ -1006,6 +1061,8 @@ function openLead(id){
     <div class="pad">
       <div class="daddr" style="font-size:19px;font-weight:800">${esc(fullAddr(l))}</div>
       ${aerialHTML(l)}
+      <div class="sect">Your photos</div>
+      <div id="myPhotos"></div>
       <div class="chips"><span class="chip" style="color:${typeColor(l.leadType)}">● ${esc(l.leadType || "Lead")}</span>
         ${l.propertyType ? `<span class="chip">${esc(l.propertyType)}</span>` : ""}
         <span class="chip">${esc(county)} County</span>
@@ -1118,7 +1175,7 @@ function openLead(id){
     toast("Saved"); closeModal();
   };
   currentLead = l;
-  renderCalc(l); renderChecklist(l); renderPayments(l); renderComps(l);
+  renderCalc(l); renderChecklist(l); renderPayments(l); renderComps(l); renderPhotos(l);
   $("#offer").onclick = () => offerSheet(l);
   $("#packet").onclick = () => visitPacket(l);
   const etc = $("#estToCalc"); if (etc) etc.onclick = async () => { const e = mortgageEstimate(l);
