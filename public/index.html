@@ -198,7 +198,7 @@ details.tool>div{padding:0 14px 14px}
     <select class="fbtn" id="fMax"><option value="">Max owed</option><option value="100000">Under $100K</option><option value="150000">Under $150K</option><option value="200000">Under $200K</option><option value="300000">Under $300K</option><option value="400000">Under $400K</option></select>
     <select class="fbtn" id="fProp"><option value="">Home type</option><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select>
     <select class="fbtn" id="fStatus"><option value="active">Status: Active</option><option value="">Status: All</option><option>New</option><option>Reviewed</option><option>Contacted</option><option>Offer Made</option><option value="saved">Saved ♥</option><option>Dead</option></select>
-    <select class="fbtn" id="fSort"><option value="subto">Sort: Best Sub-To fit</option><option value="owedAsc">Sort: Cheapest owed</option><option value="owedDesc">Sort: Most owed</option><option value="equityDesc">Sort: Most equity</option><option value="dateAsc">Sort: Key date</option><option value="newest">Sort: Newest</option></select>
+    <select class="fbtn" id="fSort"><option value="subto">Sort: Best Sub-To fit</option><option value="cureAsc">Sort: Least behind (cheapest to catch up)</option><option value="owedAsc">Sort: Cheapest owed</option><option value="owedDesc">Sort: Most owed</option><option value="equityDesc">Sort: Most equity</option><option value="dateAsc">Sort: Key date</option><option value="newest">Sort: Newest</option></select>
   </div>
 </div>
 
@@ -330,13 +330,47 @@ function filtered(opts = {}){
     dateAsc:(a,b)=>String(a.keyDate||"9999").localeCompare(String(b.keyDate||"9999")),
     newest:(a,b)=>String(b.firstSeen||"").localeCompare(String(a.firstSeen||"")),
     subto:(a,b)=>subTo(b).score-subTo(a).score,
+    cureAsc:(a,b)=>(mortgageEstimate(a).arrears ?? big)-(mortgageEstimate(b).arrears ?? big),
   }[sort]).sort((a,b) => (b.hot && b.status !== "Dead" ? 1 : 0) - (a.hot && a.status !== "Dead" ? 1 : 0));
+}
+
+/* ---------- mortgage estimate from public-record clues ----------
+   Rate: Freddie Mac PMMS 30-yr fixed average for the loan's year (2022 by quarter, since rates jumped that year).
+   Foreclosure: federal Reg X bars the first foreclosure filing until a loan is 120+ days late, so we assume about 4 months behind at the NED. */
+const PMMS = {2010:4.69,2011:4.45,2012:3.66,2013:3.98,2014:4.17,2015:3.85,2016:3.65,2017:3.99,2018:4.54,2019:3.94,2020:3.11,2021:2.96,2023:6.81,2024:6.72,2025:6.62,2026:6.6};
+function marketRate(dateStr){
+  const d = new Date(dateStr + "T12:00:00"); if (isNaN(d)) return null;
+  const y = d.getFullYear(), m = d.getMonth();
+  if (y === 2022) return [3.8, 5.25, 5.6, 6.7][Math.floor(m / 3)];
+  return PMMS[y] ?? (y < 2010 ? 5.5 : 6.6);
+}
+const addMonths = (dateStr, n) => { const d = new Date(dateStr + "T12:00:00"); d.setMonth(d.getMonth() + n); return d.toISOString().slice(0, 10); };
+const monthsBetween = (a, b) => Math.max(0, Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / (30.44 * 864e5)));
+function balanceAfter(P, ratePct, n, k){ const r = ratePct / 1200; if (!r) return P * (1 - k / n); const pay = P * r / (1 - Math.pow(1 + r, -n)); return P * Math.pow(1 + r, k) - pay * (Math.pow(1 + r, k) - 1) / r; }
+function mortgageEstimate(l){
+  const orig = l.originalLoan ?? (l.amountOwedSource === "original-loan" ? l.amountOwed : null);
+  if (!orig || !l.loanDate) return {ok: false, need: [!orig && "original loan amount", !l.loanDate && "loan date"].filter(Boolean)};
+  const rateKnown = l.interestRate != null && l.interestRate !== "";
+  const rate = rateKnown ? +l.interestRate : marketRate(l.loanDate);
+  const pi = pmt(orig, rate, 30);
+  const value = l.estValue || orig * 1.15;
+  const taxes = value * 0.0055 / 12, ins = 200;
+  const piti = pi + taxes + ins;
+  const today = new Date().toISOString().slice(0, 10);
+  const ned = l.nedDate || (l.keyDate ? addMonths(l.keyDate, -2) : null);
+  const defaultStart = ned ? addMonths(ned, -4) : null;
+  const behind = ned ? Math.min(30, 4 + monthsBetween(ned, today)) : null;
+  const paidMonths = defaultStart ? Math.max(0, monthsBetween(l.loanDate, defaultStart)) : monthsBetween(l.loanDate, today);
+  const balance = Math.max(0, balanceAfter(orig, rate, 360, Math.min(360, paidMonths)));
+  const lateFees = behind ? behind * pi * 0.04 : 0, fcCosts = behind ? 3500 : 0;
+  const arrears = behind ? behind * piti + lateFees + fcCosts : null;
+  return {ok: true, orig, rate, rateKnown, pi, taxes, ins, piti, ned, nedGuessed: !l.nedDate, behind, balance, arrears, payoff: arrears != null ? balance + arrears : balance, lateFees, fcCosts, paidMonths};
 }
 
 /* ---------- Sub-To fit score (0-100): how good a candidate for taking over the existing loan ---------- */
 function subTo(l){
   const parts = [];
-  const rate = l.interestRate ?? l.deal?.rate;
+  const rate = l.interestRate ?? l.deal?.rate ?? (l.loanDate ? marketRate(l.loanDate) : null);
   const yr = l.loanDate ? +String(l.loanDate).slice(0, 4) : null;
   if (rate) {
     const p = rate <= 4 ? 35 : rate <= 5 ? 25 : rate <= 6 ? 12 : 0;
@@ -378,6 +412,7 @@ function cardHTML(l, mode){
     <div class="body">
       <div class="price">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"}<small>${l.amountOwedSource === "original-loan" ? "orig. loan" : "owed"}</small></div>
       ${facts ? `<div class="facts">${facts}</div>` : ""}
+      ${(() => { const e = mortgageEstimate(l); return e.ok ? `<div class="facts" style="color:var(--ink2)"><span>≈ <b>${money(e.piti)}</b>/mo</span>${e.arrears != null ? `<span class="sep">|</span><span>≈ <b>${short(e.arrears)}</b> behind</span>` : ""}<span class="sep">|</span><span>≈ ${short(e.balance)} owed</span></div>` : ""; })()}
       <div class="addr">${esc(fullAddr(l))}</div>
       <div class="meta"><span>${[l.propertyType ? esc(l.propertyType) : "", l.keyDate ? "Key date " + fmtDate(l.keyDate) : esc(countyOf(l)) + " County"].filter(Boolean).join(" · ")}</span>
         <span class="status st-${st.split(" ")[0]}">${esc(st)}</span></div>
@@ -707,6 +742,20 @@ function openLead(id){
           <div class="why">${l.amountOwedSource === "original-loan" ? "Court response deadline. The actual sale date is usually weeks later. Confirm it with the Public Trustee." : "Sale date or deadline from the record."}</div></div>
       </div>
 
+      <div class="sect">Estimated mortgage</div>
+      ${(() => { const e = mortgageEstimate(l);
+        if (!e.ok) return `<div class="nums"><div class="num"><div class="why">To estimate the payment and how far behind they are, add the <b>${e.need.join(" and ")}</b> below (both are in the foreclosure filing / deed of trust).</div></div></div>`;
+        const row = (lbl, val, conf, why) => `<div class="num"><div class="row"><span class="lbl">${lbl}</span>${confPill(conf)}</div><div class="val">${val}</div><div class="why">${why}</div></div>`;
+        return `<div class="nums">
+          ${row("Monthly payment (principal, interest, taxes, insurance)", money(e.piti) + "/mo", e.rateKnown ? ["med","Medium"] : ["low","Estimate"], `P&amp;I ${money(e.pi)} on the ${money(e.orig)} original loan over 30 years at ${e.rate}%${e.rateKnown ? "" : ` (the average 30-year rate when the loan was made, ${fmtDate(l.loanDate)})`}, plus about ${money(e.taxes)} taxes and ${money(e.ins)} insurance. FHA/VA loans and PMI can add more.`)}
+          ${e.behind != null ? row("How far behind", `≈ ${e.behind} months · ${money(e.arrears)}`, ["low","Estimate"], `Lenders can't start a foreclosure until a loan is more than 120 days late, so we assume about 4 months behind at the foreclosure notice (${e.nedGuessed ? "estimated around " : ""}${fmtDate(e.ned)}) plus every month since. Includes about ${money(e.lateFees)} late fees and ${money(e.fcCosts)} foreclosure costs.`) : ""}
+          ${row("Loan balance (not counting what's past due)", "≈ " + money(e.balance), ["low","Estimate"], `What's left after about ${e.paidMonths} on-time payments.`)}
+          ${e.arrears != null ? row("Estimated total payoff", "≈ " + money(e.payoff), ["low","Estimate"], "Balance plus what's past due. The real number comes from the lender's payoff or reinstatement quote.") : ""}
+        </div>
+        <div class="btns"><button class="btn" id="estToCalc">Put these in the deal calculator</button></div>`; })()}
+      <div class="grid2"><div><label>Original loan amount</label><input class="field" id="eOrig" inputmode="decimal" value="${l.originalLoan ?? (l.amountOwedSource === "original-loan" ? l.amountOwed ?? "" : "")}" placeholder="$ from the filing"></div>
+        <div><label>Foreclosure notice (NED) date</label><input class="field" type="date" id="eNed" value="${esc(l.nedDate || "")}"></div></div>
+
       <div class="sect">Sub-To fit: <span style="color:${subColor(subTo(l).score)}">${subTo(l).score} · ${subTo(l).label}</span></div>
       <div class="nums">${subTo(l).parts.map(p => `<div class="num"><div class="row"><span class="lbl">${esc(p[2])}</span><b>${p[0]}/${p[1]}</b></div></div>`).join("")}</div>
       <div class="grid2"><div><label>Loan date (deed of trust)</label><input class="field" type="date" id="eLoanDate" value="${esc(l.loanDate || "")}"></div>
@@ -744,7 +793,7 @@ function openLead(id){
   $("#seg").onclick = e => { const b = e.target.closest("[data-s]"); if (!b) return;
     $("#seg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); patch(l, {status: b.dataset.s}, "Moved to " + b.dataset.s); };
   $("#save").onclick = async () => {
-    const ch = {loanDate: $("#eLoanDate").value, interestRate: $("#eRate").value, phone: $("#ePhone").value.trim(), ownerMailing: $("#eMail").value.trim(), notes: $("#eNotes").value, estValue: $("#eVal").value, amountOwed: $("#eOwed").value,
+    const ch = {originalLoan: $("#eOrig").value, nedDate: $("#eNed").value, loanDate: $("#eLoanDate").value, interestRate: $("#eRate").value, phone: $("#ePhone").value.trim(), ownerMailing: $("#eMail").value.trim(), notes: $("#eNotes").value, estValue: $("#eVal").value, amountOwed: $("#eOwed").value,
       amountOwedSource: $("#eOwedSrc").value, estValueSource: $("#eValSrc").value};
     const num = v => v === "" ? null : Number(String(v).replace(/[$,\s]/g, ""));
     if (num(ch.amountOwed) !== l.amountOwed && !ch.amountOwedSource) ch.amountOwedSource = "manual";
@@ -756,6 +805,10 @@ function openLead(id){
   currentLead = l;
   renderCalc(l); renderChecklist(l); renderPayments(l); renderComps(l);
   $("#offer").onclick = () => offerSheet(l);
+  const etc = $("#estToCalc"); if (etc) etc.onclick = async () => { const e = mortgageEstimate(l);
+    const deal = {...(l.deal || {}), balance: Math.round(e.balance), rate: e.rate, yearsLeft: Math.max(1, Math.round((360 - e.paidMonths) / 12)),
+      taxes: Math.round(e.taxes), insurance: e.ins, monthsBehind: e.behind ?? "", fees: Math.round(e.lateFees + e.fcCosts), value: l.estValue ?? ""};
+    await patch(l, {deal}, "Estimates added to the calculator"); renderCalc(l); $("#calcBox").open = true; $("#calcBox").scrollIntoView({behavior: "smooth"}); };
   $("#replied").onclick = async () => { await patch(l, {hot: !l.hot, ...(!l.hot && ["New","Reviewed"].includes(l.status || "New") ? {status: "Contacted"} : {})}, l.hot ? "Marked as replied 🔥" : "Reply mark removed"); $("#replied").textContent = l.hot ? "🔥 Replied" : "🔥 Mark replied"; };
   $("#letter").onclick = () => showOut(letterText(l), true);
   $("#script").onclick = () => showOut(scriptText(l), false);
