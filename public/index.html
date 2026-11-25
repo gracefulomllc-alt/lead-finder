@@ -207,7 +207,7 @@ details.tool>div{padding:0 14px 14px}
   <!-- NEW FEED -->
   <section class="view on" id="v-new">
     <div class="crumb" id="crumbNew"></div>
-    <div class="head"><h1 id="newTitle">New leads</h1><span class="sub">Within 40 mi of I-25 &amp; I-70 · Save, pass, or mark contacted to clear them</span></div>
+    <div class="head"><h1 id="newTitle">New leads</h1><span class="sub">Within 40 mi of I-25 &amp; I-70 · Save, pass, or mark contacted to clear them</span><button class="btn primary" id="routeBtn" style="white-space:nowrap;align-self:center">🚗 Plan route</button></div>
     <div class="grid feed" id="newGrid"></div>
   </section>
 
@@ -838,6 +838,106 @@ async function photoCheck(){
   const fix = m.status === "REQUEST_DENIED" || !sat ? `<p><b>To fix it</b> in <a href="https://console.cloud.google.com/apis/library" target="_blank" rel="noopener">Google Cloud Console</a> (same project as your key):</p><ol><li>APIs &amp; Services → Library → turn on <b>Street View Static API</b> and <b>Maps Static API</b>.</li><li>Billing → make sure a billing account is linked (Google gives a monthly free credit; these photos usually stay inside it).</li><li>Credentials → your key → if "Application restrictions" is set to websites, add <b>co-lead-finder.netlify.app/*</b>. Under "API restrictions," allow both APIs above.</li><li>Wait a few minutes, then reopen the app.</li></ol>` : "";
   show("House photo check", `<p>Tested: ${esc(fullAddr(l))}</p><p>${sv}<br>${sat ? "✅ Aerial photos work" : "❌ Aerial photos blocked (Maps Static API)"}</p>${fix}`);
 }
+/* ---------- door-knock route planner ---------- */
+const miles = (a, b) => { const R = 3958.8, r = x => x * Math.PI / 180; const dLat = r(b[0] - a[0]), dLng = r(b[1] - a[1]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a[0])) * Math.cos(r(b[0])) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(h)); };
+const routeLen = (pts) => pts.slice(1).reduce((s, p, i) => s + miles(pts[i], p), 0);
+function orderStops(start, stops, end){
+  // nearest-neighbor from start, then 2-opt improvements; start (and end, if any) stay fixed
+  let rest = [...stops], path = [];
+  let cur = start;
+  while (rest.length){ rest.sort((a, b) => miles(cur, a.pt) + (end ? 0.35 * miles(a.pt, end) : 0) - miles(cur, b.pt) - (end ? 0.35 * miles(b.pt, end) : 0)); const n = rest.shift(); path.push(n); cur = n.pt; }
+  const full = () => [start, ...path.map(s => s.pt), ...(end ? [end] : [])];
+  let improved = true, guard = 0;
+  while (improved && guard++ < 50){ improved = false;
+    for (let i = 0; i < path.length - 1; i++) for (let k = i + 1; k < path.length; k++){
+      const before = routeLen(full()); const cand = [...path.slice(0, i), ...path.slice(i, k + 1).reverse(), ...path.slice(k + 1)];
+      const old = path; path = cand; if (routeLen(full()) + 1e-9 < before) improved = true; else path = old; } }
+  return path;
+}
+async function geocodeText(q){
+  const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${encodeURIComponent(q)}`);
+  const d = await r.json(); if (!d[0]) throw new Error("Couldn't find that address"); return [+d[0].lat, +d[0].lon];
+}
+function hereNow(){
+  return new Promise((res, rej) => { if (!navigator.geolocation) return rej(new Error("Location isn't available in this browser"));
+    navigator.geolocation.getCurrentPosition(p => res([p.coords.latitude, p.coords.longitude]), e => rej(new Error(e.code === 1 ? "Location permission was denied. Allow location for this site, or type a start address." : "Couldn't get your location")), {enableHighAccuracy: true, timeout: 15000, maximumAge: 60000}); });
+}
+let routeMap = null, lastRoute = null;
+function openRoutePlanner(){
+  const saved = (() => { try { return JSON.parse(localStorage.getItem("lf_route") || "{}"); } catch { return {}; } })();
+  openModal(`<div class="pad"><div style="display:flex;justify-content:space-between;align-items:center"><div class="dprice" style="font-size:22px">🚗 Door-knock route</div><button class="close" id="x" style="position:static">✕</button></div>
+    <p style="color:var(--ink2);font-size:14px;margin:4px 0 10px">Picks the best Sub-To fits near you (or along your way) and puts them in the fastest order. Skips houses you passed, marked dead, or whose sale date is gone.</p>
+    <label>Start</label>
+    <div style="display:flex;gap:6px"><input class="field" id="rStart" placeholder="My current location" value="${esc(saved.start || "")}"><button class="btn" id="rHere" title="Use my location">📍</button></div>
+    <label>Ending at (optional)</label>
+    <input class="field" id="rEnd" placeholder="e.g. office, home, next appointment" value="${esc(saved.end || "")}">
+    <div class="grid2">
+      <div><label>Stops: <b id="rNv">${saved.n || 6}</b></label><input type="range" id="rN" min="3" max="10" value="${saved.n || 6}" style="width:100%"></div>
+      <div><label id="rRl">Search radius: <b id="rRv">${saved.r || 8}</b> mi</label><input type="range" id="rR" min="2" max="25" value="${saved.r || 8}" style="width:100%"></div>
+    </div>
+    <label class="ckrow" style="margin-top:4px"><input type="checkbox" id="rHot" ${saved.hot ? "checked" : ""}><span>Include tax-delinquent homes<small>Off = foreclosures only (best for sub-to)</small></span></label>
+    <div class="btns"><button class="btn primary" id="rGo">Plan my route</button></div>
+    <div id="rOut"></div></div>`);
+  $("#x").onclick = closeModal;
+  const upd = () => { $("#rNv").textContent = $("#rN").value; $("#rRv").textContent = $("#rR").value;
+    $("#rRl").innerHTML = ($("#rEnd").value.trim() ? "Max detour off my way" : "Search radius") + `: <b id="rRv">${$("#rR").value}</b> mi`; };
+  $("#rN").oninput = upd; $("#rR").oninput = upd; $("#rEnd").oninput = upd; upd();
+  $("#rHere").onclick = () => { $("#rStart").value = ""; $("#rStart").placeholder = "My current location"; };
+  $("#rGo").onclick = planRoute;
+}
+async function planRoute(){
+  const out = $("#rOut"), n = +$("#rN").value, R = +$("#rR").value, endTxt = $("#rEnd").value.trim(), startTxt = $("#rStart").value.trim(), incTax = $("#rHot").checked;
+  try { localStorage.setItem("lf_route", JSON.stringify({start: startTxt, end: endTxt, n, r: R, hot: incTax})); } catch {}
+  out.innerHTML = `<p style="color:var(--muted)">Finding your location and the best houses…</p>`;
+  try {
+    const start = startTxt ? await geocodeText(startTxt) : await hereNow();
+    const end = endTxt ? await geocodeText(endTxt) : null;
+    const direct = end ? miles(start, end) : 0;
+    const today = today10();
+    const pool = leads.filter(l => l.lat != null && l.lng != null && !["Dead"].includes(l.status) && !isClosed(l)
+        && !(l.keyDate && l.keyDate < today) && (incTax || l.leadType !== "Tax-delinquent"))
+      .map(l => { const pt = [l.lat, l.lng]; const off = end ? miles(start, pt) + miles(pt, end) - direct : miles(start, pt);
+        return {l, pt, off, score: subTo(l).score + (l.saved ? 10 : 0) + (l.hot ? 15 : 0)}; })
+      .filter(x => x.off <= R);
+    if (!pool.length) { out.innerHTML = `<p>No open leads with a map pin ${end ? "within " + R + " mi of your way" : "within " + R + " mi"}. Try a bigger ${end ? "detour" : "radius"}.</p>`; return; }
+    // rank by fit, lightly penalising distance so a slightly lower score next door beats a top score far away
+    const pick = pool.sort((a, b) => (b.score - b.off * 2) - (a.score - a.off * 2)).slice(0, Math.min(n, end ? 9 : 10));
+    const ordered = orderStops(start, pick, end);
+    const pts = [start, ...ordered.map(s => s.pt), ...(end ? [end] : [])];
+    const total = routeLen(pts) * 1.3; // straight-line → rough road miles
+    lastRoute = {start, end, ordered};
+    const legs = ordered.map((s, i) => miles(i ? ordered[i - 1].pt : start, s.pt) * 1.3);
+    out.innerHTML = `<div id="rMap" style="height:260px;border-radius:12px;margin:10px 0"></div>
+      <div style="font-size:14px;color:var(--ink2);margin-bottom:6px">${ordered.length} stops · about <b>${Math.round(total)} mi</b> of driving (≈ ${Math.round(total / 30 * 60 + ordered.length * 10)} min with 10 min per door)</div>
+      ${ordered.map((s, i) => { const l = s.l, e = mortgageEstimate(l); return `<div class="num" data-open="${esc(l.id)}" style="cursor:pointer;margin:6px 0"><div class="row"><span class="lbl"><b>${i + 1}.</b> ${esc(l.address)}, ${esc(l.city || "")}</span><b style="color:${subColor(subTo(l).score)}">${subTo(l).score}</b></div>
+        <div class="why">${legs[i].toFixed(1)} mi · ${esc(l.owner || "Owner unknown")}${l.interestRate ? " · " + l.interestRate + "%" : ""}${e.ok && e.arrears != null ? " · ≈ " + short(e.arrears) + " behind" : ""}${l.keyDate ? " · sale " + fmtDate(l.keyDate) : ""}${l.cureIntentDeadline && daysUntil(l.cureIntentDeadline) >= 0 && daysUntil(l.cureIntentDeadline) <= 14 ? " · ⏰ cure notice due " + fmtDate(l.cureIntentDeadline) : ""}</div></div>`; }).join("")}
+      <div class="btns"><a class="btn primary" id="rGmaps" target="_blank" rel="noopener noreferrer" href="${gmapsRoute(start, ordered, end)}">▶ Start in Google Maps</a>
+        <button class="btn" id="rPackets">🖨 Packets for all stops</button><button class="btn" id="rAgain">↻ Re-plan</button></div>
+      <p style="font-size:12px;color:var(--muted)">Tap a stop to open it. Google Maps keeps this order. Distances are estimates.</p>`;
+    out.querySelectorAll("[data-open]").forEach(d => d.onclick = () => openLead(d.dataset.open));
+    $("#rAgain").onclick = planRoute;
+    $("#rPackets").onclick = () => ordered.forEach((s, i) => setTimeout(() => visitPacket(s.l), i * 400));
+    if (typeof L !== "undefined") {
+      if (routeMap) { routeMap.remove(); routeMap = null; }
+      routeMap = L.map("rMap", {zoomControl: false});
+      L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {maxZoom: 19, attribution: "© OpenStreetMap © CARTO"}).addTo(routeMap);
+      L.polyline(pts, {color: "#0b6bcb", weight: 4, opacity: .7, dashArray: "6 6"}).addTo(routeMap);
+      L.marker(start, {icon: L.divIcon({className: "", html: `<span class="pin" style="background:#111">Start</span>`, iconSize: [0, 0]})}).addTo(routeMap);
+      if (end) L.marker(end, {icon: L.divIcon({className: "", html: `<span class="pin" style="background:#111">End</span>`, iconSize: [0, 0]})}).addTo(routeMap);
+      ordered.forEach((s, i) => L.marker(s.pt, {icon: L.divIcon({className: "", html: `<span class="pin ${typeCls(s.l.leadType)}">${i + 1}</span>`, iconSize: [0, 0]})}).on("click", () => openLead(s.l.id)).addTo(routeMap));
+      routeMap.fitBounds(pts, {padding: [24, 24]}); setTimeout(() => routeMap.invalidateSize(), 80);
+    }
+  } catch (e) { out.innerHTML = `<p style="color:var(--red)">${esc(e.message)}</p>`; }
+}
+function gmapsRoute(start, ordered, end){
+  const ll = p => p.join(",");
+  const stops = ordered.map(s => ll(s.pt));
+  const dest = end ? ll(end) : stops.pop();
+  const wp = stops.slice(0, 9).join("|");
+  return `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(ll(start))}&destination=${encodeURIComponent(dest)}${wp ? "&waypoints=" + encodeURIComponent(wp) : ""}&travelmode=driving`;
+}
+
 function visitPacket(l){
   const e = mortgageEstimate(l), st = subTo(l), oc = owedConf(l), vc = valueConf(l), eq = equity(l), county = countyOf(l);
   const pill = c => `<span class="p p-${c[0]}">${c[1]}</span>`;
@@ -1380,6 +1480,7 @@ function askKey(bad){
   $("#keySave").onclick = () => { setKey($("#keyIn").value.trim()); closeModal(); load(); };
   $("#keyIn").onkeydown = e => { if (e.key === "Enter") $("#keySave").click(); };
 }
+$("#routeBtn").onclick = openRoutePlanner;
 $("#menuBtn").onclick = () => {
   openModal(`<div class="pad"><div class="dprice" style="font-size:22px">More</div>
     <div class="btns" style="flex-direction:column;align-items:stretch">
@@ -1389,6 +1490,7 @@ $("#menuBtn").onclick = () => {
       <button class="btn" id="mMailAll">📬 Mail letters to all Saved ♥ leads${mailInfo.enabled ? (mailInfo.mode === "test" ? " (test mode)" : "") : " (set up)"}</button>
       <button class="btn" id="mImport">⬆ Import leads (JSON or CSV)</button>
       <button class="btn" id="mExport">⬇ Export current list (CSV)</button>
+      <button class="btn" id="mRoute">🚗 Plan a door-knock route</button>
       <button class="btn" id="mPhoto">📷 Check house photos</button>
       <button class="btn" id="mGeo">📍 Find map pins for all leads</button>
       <button class="btn" id="mKey">🔑 Access key (only if you turn one on)</button>
@@ -1404,6 +1506,7 @@ $("#menuBtn").onclick = () => {
   };
   $("#mImport").onclick = importSheet;
   $("#mPhoto").onclick = photoCheck;
+  $("#mRoute").onclick = openRoutePlanner;
   $("#mSettings").onclick = openSettings;
   $("#mSell").onclick = () => { const u = sellUrl(null), q = qrDataURL(u);
     openModal(`<div class="pad"><div class="dprice" style="font-size:22px">Your seller page</div>
