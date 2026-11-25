@@ -13,6 +13,7 @@
   --red:#d8232a;--orange:#e56a00;--purple:#7a3ff2;--green:#0a8a3a;--r:12px;--nav:62px
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 "Open Sans",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
 button,input,select,textarea{font:inherit;color:inherit}
 a{color:var(--blue)}
@@ -229,8 +230,11 @@ details.tool>div{padding:0 14px 14px}
   </section>
 
   <section class="view" id="v-pipe">
-    <div class="head"><h1>Pipeline</h1><span class="sub">Tap a lead to change its stage</span></div>
+    <div class="head"><h1 id="pipeTitle">Pipeline</h1></div>
+    <div class="seg" id="pipeSeg" style="margin:0 14px 10px"><button data-p="board" class="on">Board</button><button data-p="results">Results</button><button data-p="portfolio">Portfolio</button></div>
     <div class="board" id="board"></div>
+    <div id="results" hidden></div>
+    <div id="portfolio" hidden></div>
   </section>
 </main>
 
@@ -498,6 +502,71 @@ function render(){
     return `<div class="col"><h3><span>${s}</span><span style="color:var(--muted)">${items.length}</span></h3>${items.map(l => cardHTML(l)).join("") || `<div style="color:var(--muted);font-size:13px;padding:6px">Nothing here</div>`}</div>`;
   }).join("");
   bindCards($("#board"));
+  if (view === "pipe") { if (pipeTab === "results") renderResults(); if (pipeTab === "portfolio") renderPortfolio(); }
+}
+let pipeTab = "board";
+document.addEventListener("click", e => { const b = e.target.closest("#pipeSeg [data-p]"); if (!b) return;
+  pipeTab = b.dataset.p; $("#pipeSeg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b));
+  $("#board").hidden = pipeTab !== "board"; $("#results").hidden = pipeTab !== "results"; $("#portfolio").hidden = pipeTab !== "portfolio";
+  $("#pipeTitle").textContent = {board: "Pipeline", results: "Results", portfolio: "Portfolio"}[pipeTab]; render(); });
+
+/* ---------- results dashboard ---------- */
+const isClosed = l => !!(l.checklist && l.checklist.recorded);
+const lettersOf = l => (l.letters || []).length || (l.lastLetter && !/^TEST/.test(l.lastLetter) ? 1 : 0);
+function renderResults(){
+  const area = leads.filter(inCorridor).filter(l => !place.county || countyOf(l) === place.county);
+  const lettered = area.filter(l => lettersOf(l) > 0), sent = area.reduce((a, l) => a + lettersOf(l), 0);
+  const responded = area.filter(l => l.hot), lr = lettered.filter(l => l.hot);
+  const st = s => area.filter(l => (l.status || "New") === s).length;
+  const closed = area.filter(isClosed).length;
+  const pct = (a, b) => b ? Math.round(a / b * 1000) / 10 + "%" : "—";
+  const funnel = [["Leads", area.length], ["Letters sent", sent], ["Owners reached out", responded.length], ["Contacted", st("Contacted") + st("Offer Made") + closed], ["Offers made", st("Offer Made") + closed], ["Deals closed", closed]];
+  const max = Math.max(1, ...funnel.map(f => f[1]));
+  const byC = {};
+  area.forEach(l => { const c = countyOf(l) || "Unknown", o = byC[c] ||= {leads: 0, letters: 0, resp: 0, lr: 0, lettered: 0, offers: 0, closed: 0};
+    o.leads++; o.letters += lettersOf(l); if (l.hot) o.resp++; if (lettersOf(l)) { o.lettered++; if (l.hot) o.lr++; } if (l.status === "Offer Made") o.offers++; if (isClosed(l)) o.closed++; });
+  const weeks = {}; area.forEach(l => (l.letters || []).forEach(x => { const d = new Date(x.date + "T12:00:00"); d.setDate(d.getDate() - d.getDay()); const k = d.toISOString().slice(0, 10); weeks[k] = (weeks[k] || 0) + 1; }));
+  $("#results").innerHTML = `<div style="padding:0 14px">
+    <div class="calcout" style="grid-template-columns:repeat(3,1fr)">
+      <div>Response rate<b>${pct(lr.length, lettered.length)}</b></div><div>Letters per deal<b>${closed ? Math.round(sent / closed) : "—"}</b></div><div>Offer → close<b>${pct(closed, st("Offer Made") + closed)}</b></div></div>
+    <div class="sect">Funnel ${place.county ? "· " + esc(place.county) + " County" : ""}</div>
+    ${funnel.map(([k, v]) => `<div style="margin:8px 0"><div style="display:flex;justify-content:space-between;font-size:14px"><span>${k}</span><b>${v}</b></div>
+      <div style="height:10px;background:#eceef2;border-radius:6px;overflow:hidden"><div style="height:100%;width:${Math.max(2, v / max * 100)}%;background:var(--blue)"></div></div></div>`).join("")}
+    <div class="sect">By county</div>
+    <div style="overflow-x:auto"><table class="ptable"><tr><th>County</th><th>Leads</th><th>Letters</th><th>Replies</th><th>Rate</th><th>Offers</th><th>Closed</th></tr>
+      ${Object.entries(byC).sort((a, b) => b[1].leads - a[1].leads).map(([c, o]) => `<tr><td>${esc(c)}</td><td>${o.leads}</td><td>${o.letters}</td><td>${o.resp}</td><td>${pct(o.lr, o.lettered)}</td><td>${o.offers}</td><td>${o.closed}</td></tr>`).join("")}</table></div>
+    <div class="sect">Letters by week</div>
+    ${Object.keys(weeks).length ? Object.entries(weeks).sort().slice(-12).map(([w, n]) => `<div style="display:flex;justify-content:space-between;font-size:14px;padding:4px 0;border-top:1px solid var(--line)"><span>Week of ${fmtDate(w)}</span><b>${n}</b></div>`).join("") : `<p style="color:var(--muted);font-size:14px">No letters logged yet. Printing or mailing a letter from the app logs it here.</p>`}
+    <p style="font-size:12px;color:var(--muted)">Response rate = owners who replied ÷ owners you sent letters to. "Replies" counts owners who filled out your seller page. Log phone replies by tapping 🔥 Mark replied on the lead.</p></div>`;
+}
+
+/* ---------- portfolio ---------- */
+function renderPortfolio(){
+  const owned = leads.filter(isClosed);
+  const rows = owned.map(l => {
+    const pf = l.portfolio || {}, d = l.deal || {};
+    const rent = N(pf.rent || d.rent), pi = N(d.pi) || pmt(N(d.balance), N(d.rate), N(d.yearsLeft));
+    const piti = pi + N(d.taxes) + N(d.insurance) + N(d.hoa), other = N(pf.otherCosts);
+    const value = N(pf.value || d.value || l.estValue), bal = N(pf.balance || d.balance);
+    const paid = (l.payments || []).reduce((a, p) => a + N(p.amount), 0);
+    const last = [...(l.payments || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]?.date;
+    const late = last ? (Date.now() - new Date(last + "T12:00:00")) / 864e5 > 35 : true;
+    const reserve = rent * N(d.reservePct ?? 15) / 100;
+    return {l, rent, piti, flow: rent - piti - other - reserve, value, bal, eq: value && bal ? value - bal : null, paid, last, late};
+  });
+  const sum = k => rows.reduce((a, r) => a + (r[k] || 0), 0);
+  $("#portfolio").innerHTML = `<div style="padding:0 14px">
+    <div class="calcout" style="grid-template-columns:repeat(2,1fr)">
+      <div>Homes<b>${rows.length}</b></div><div>Monthly cash flow<b style="color:${sum("flow") >= 0 ? "var(--green)" : "var(--red)"}">${money(sum("flow"))}</b></div>
+      <div>Total equity<b>${money(sum("eq"))}</b></div><div>Loan payments made<b>${money(sum("paid"))}</b></div></div>
+    ${rows.length ? rows.map(r => `<div class="ctile" style="margin-top:12px" data-id="${esc(r.l.id)}">
+      <h3><span>${esc(r.l.address)}</span>${r.late ? `<span class="conf c-low">Payment due?</span>` : `<span class="conf c-high">Paid</span>`}</h3>
+      <div style="font-size:13px;color:var(--muted)">${esc(r.l.city || "")} · closed ${fmtDate(r.l.checklist.recorded)}</div>
+      <div class="stats"><div><b>${money(r.rent)}</b>rent</div><div><b>${money(r.piti)}</b>loan pmt</div><div><b style="color:${r.flow >= 0 ? "var(--green)" : "var(--red)"}">${money(r.flow)}</b>cash flow</div><div><b>${money(r.eq)}</b>equity</div></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">Last loan payment: ${fmtDate(r.last)}</div></div>`).join("")
+      : `<div class="empty"><b>No homes yet</b>When you check off "Deed recorded" on a deal's checklist, the home moves here so you can track rent, loan payments and equity.</div>`}
+  </div>`;
+  $("#portfolio").querySelectorAll(".ctile").forEach(t => t.onclick = () => openLead(t.dataset.id));
 }
 
 /* ---------- map ---------- */
@@ -643,6 +712,7 @@ function openLead(id){
       <div class="grid2"><div><label>Loan date (deed of trust)</label><input class="field" type="date" id="eLoanDate" value="${esc(l.loanDate || "")}"></div>
         <div><label>Interest rate %</label><input class="field" id="eRate" inputmode="decimal" value="${l.interestRate ?? ""}" placeholder="e.g. 3.25"></div></div>
 
+      <details class="tool"><summary>🏘 Comps &amp; value check <span id="compCount"></span></summary><div id="comps"></div></details>
       <details class="tool" id="calcBox"><summary>🧮 Sub-to deal calculator</summary><div id="calc"></div></details>
       <details class="tool"><summary>✅ Deal checklist <span id="ckCount"></span></summary><div id="ck"></div></details>
       <details class="tool"><summary>💵 Loan payment tracker <span id="payCount"></span></summary><div id="pay"></div></details>
@@ -665,7 +735,7 @@ function openLead(id){
       <div class="btns"><button class="btn primary" id="save">Save changes</button></div>
 
       <div class="sect">Reach out</div>
-      <div class="btns" style="margin-top:0"><button class="btn" id="letter">✉️ Owner letter</button><button class="btn" id="script">🚪 Door script</button></div>
+      <div class="btns" style="margin-top:0"><button class="btn" id="letter">✉️ Owner letter</button><button class="btn" id="script">🚪 Door script</button><button class="btn" id="offer">📄 Offer sheet</button><button class="btn" id="replied">${l.hot ? "🔥 Replied" : "🔥 Mark replied"}</button></div>
       <div id="out"></div>
       <div class="btns"><button class="btn" id="del" style="color:var(--red)">Delete lead</button></div>
     </div>`);
@@ -684,7 +754,9 @@ function openLead(id){
     toast("Saved"); closeModal();
   };
   currentLead = l;
-  renderCalc(l); renderChecklist(l); renderPayments(l);
+  renderCalc(l); renderChecklist(l); renderPayments(l); renderComps(l);
+  $("#offer").onclick = () => offerSheet(l);
+  $("#replied").onclick = async () => { await patch(l, {hot: !l.hot, ...(!l.hot && ["New","Reviewed"].includes(l.status || "New") ? {status: "Contacted"} : {})}, l.hot ? "Marked as replied 🔥" : "Reply mark removed"); $("#replied").textContent = l.hot ? "🔥 Replied" : "🔥 Mark replied"; };
   $("#letter").onclick = () => showOut(letterText(l), true);
   $("#script").onclick = () => showOut(scriptText(l), false);
   $("#del").onclick = async () => {
@@ -778,6 +850,71 @@ function renderPayments(l){
   });
 }
 
+/* ---------- comps ---------- */
+function renderComps(l){
+  const cs = l.comps || [];
+  const ppsf = cs.filter(c => N(c.price) && N(c.sqft)).map(c => N(c.price) / N(c.sqft));
+  const avgPrice = cs.length ? cs.reduce((a, c) => a + N(c.price), 0) / cs.length : 0;
+  const avgPpsf = ppsf.length ? ppsf.reduce((a, b) => a + b, 0) / ppsf.length : 0;
+  const est = avgPpsf && N(l.sqft) ? avgPpsf * N(l.sqft) : avgPrice;
+  const zip = l.zip || "", q = encodeURIComponent(fullAddr(l));
+  $("#compCount").textContent = cs.length ? `(${cs.length})` : "";
+  $("#comps").innerHTML = `<p style="font-size:13px;color:var(--muted);margin:0">Find 3–5 similar homes that <b>sold</b> nearby in the last 6 months (same type, similar size and beds/baths, within about half a mile), then add them here.</p>
+    <div class="btns">
+      <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.zillow.com/homes/recently_sold/${encodeURIComponent(zip || (l.city + " CO"))}_rb/">Zillow sold ${esc(zip)}</a>
+      <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.redfin.com/zipcode/${encodeURIComponent(zip)}/filter/include=sold-6mo">Redfin sold ${esc(zip)}</a>
+      <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.google.com/search?q=${encodeURIComponent(countyOf(l) + " County Colorado assessor " + l.address)}">Assessor record</a></div>
+    <div class="grid2"><div><label>This home's sq ft</label><input class="field" id="cSq" inputmode="numeric" value="${esc(l.sqft ?? "")}"></div><div></div></div>
+    ${cs.length ? `<table class="ptable"><tr><th>Address</th><th>Sold</th><th>Sq ft</th><th>$/sf</th><th></th></tr>${cs.map((c, i) => `<tr><td>${esc(c.address)}<br><small>${fmtDate(c.date)}</small></td><td>${money(N(c.price))}</td><td>${esc(c.sqft || "")}</td><td>${N(c.sqft) ? "$" + Math.round(N(c.price) / N(c.sqft)) : "—"}</td><td><button class="btn small" data-cdel="${i}" style="padding:3px 8px">✕</button></td></tr>`).join("")}</table>` : ""}
+    <div class="grid2"><div><label>Comp address</label><input class="field" id="cA"></div><div><label>Sold price</label><input class="field" id="cP" inputmode="decimal" placeholder="$"></div></div>
+    <div class="grid2"><div><label>Sold date</label><input class="field" type="date" id="cD"></div><div><label>Sq ft</label><input class="field" id="cS" inputmode="numeric"></div></div>
+    <div class="btns"><button class="btn" id="cAdd">Add comp</button></div>
+    ${cs.length ? `<div class="calcout"><div>Average sold price<b>${money(avgPrice)}</b></div><div>Average $/sq ft<b>${avgPpsf ? "$" + Math.round(avgPpsf) : "—"}</b></div><div>Value from comps<b>${money(est)}</b></div><div>Current value in app<b>${money(l.estValue)}</b></div></div>
+      <div class="btns"><button class="btn primary" id="cUse">Use ${money(est)} as value (High accuracy)</button></div>` : ""}`;
+  $("#cAdd").onclick = async () => { const c = {address: $("#cA").value.trim(), price: N($("#cP").value), date: $("#cD").value, sqft: N($("#cS").value) || ""};
+    if (!c.address || !c.price) return toast("Add the comp's address and sold price");
+    await patch(l, {comps: [...cs, c], ...( $("#cSq").value ? {sqft: N($("#cSq").value)} : {})}); renderComps(l); };
+  $("#comps").querySelectorAll("[data-cdel]").forEach(b => b.onclick = async () => { await patch(l, {comps: cs.filter((_, i) => i !== +b.dataset.cdel)}); renderComps(l); });
+  $("#cSq").onchange = async () => { await patch(l, {sqft: N($("#cSq").value)}); renderComps(l); };
+  const u = $("#cUse"); if (u) u.onclick = async () => { await patch(l, {estValue: Math.round(est), estValueSource: "comps"}, "Value updated from comps"); openLead(l.id); };
+}
+
+/* ---------- seller offer sheet (plain-English summary, not a contract) ---------- */
+function offerSheet(l){
+  const d = l.deal || {}, pi = N(d.pi) || pmt(N(d.balance), N(d.rate), N(d.yearsLeft));
+  const piti = pi + N(d.taxes) + N(d.insurance) + N(d.hoa), reinstate = piti * N(d.monthsBehind) + N(d.fees);
+  if (!N(d.balance)) return toast("Fill in and save the deal calculator first");
+  const v = (x, fb = "________") => x ? x : fb;
+  const html = `<!DOCTYPE html><html><head><title>Offer summary: ${esc(l.address)}</title><style>
+    body{font:12pt/1.5 Georgia,serif;color:#111;max-width:7in;margin:0.6in auto}
+    h1{font-size:18pt;margin:0 0 4px}h2{font-size:13pt;margin:18px 0 6px;border-bottom:1px solid #ccc;padding-bottom:3px}
+    table{width:100%;border-collapse:collapse}td{padding:5px 4px;border-bottom:1px solid #eee}td:last-child{text-align:right;font-weight:bold}
+    .box{border:1.5px solid #111;padding:10px 12px;margin-top:14px;font-size:11pt}.small{font-size:10pt;color:#444}
+  </style></head><body>
+  <h1>Summary of proposed terms</h1>
+  <div>${esc(fullAddr(l))}<br>Prepared for: ${esc(l.owner || "Homeowner")} · ${todayLong()}<br>From: ${esc([settings.senderName, settings.company].filter(Boolean).join(", "))}${settings.phone ? " · " + esc(settings.phone) : ""}</div>
+  <div class="box"><b>This is a plain-English summary to help you review, not a contract.</b> Nothing is binding until a written contract is signed. Please review it with an attorney, a HUD-approved housing counselor (free: Colorado Foreclosure Hotline 1-877-601-HOPE / 4673) or anyone you trust.</div>
+  <h2>What we would do</h2><table>
+    <tr><td>Pay what's past due to bring your loan current (estimated; final number from your lender)</td><td>${money(reinstate)}</td></tr>
+    <tr><td>Make your monthly mortgage payment going forward (principal, interest, taxes, insurance, HOA)</td><td>${money(piti)}/mo</td></tr>
+    <tr><td>Cash paid to you at closing</td><td>${money(N(d.sellerCash))}</td></tr>
+    <tr><td>Closing, title and attorney costs paid by us</td><td>${money(N(d.closing))}</td></tr>
+    <tr><td>Target closing date</td><td>${v("")}</td></tr>
+    <tr><td>Date you move out</td><td>${v("")}</td></tr></table>
+  <h2>What stays the same</h2>
+  <p>Your existing loan with your lender <b>stays in your name</b> until it's paid off or refinanced. Your lender's contract usually allows it to ask for the full balance when ownership changes ("due-on-sale"). We'll explain in writing what we would do if that happened.</p>
+  <h2>How you're protected</h2>
+  <ul><li>Every term is in a written contract, which you can review with anyone before signing.</li>
+  <li>You can cancel the contract until midnight of the <b>third business day</b> after you sign.</li>
+  <li>We send you proof of every loan payment we make. You can also check your loan online at any time.</li>
+  <li>The home is insured, and your lender is listed as the policy requires.</li></ul>
+  <h2>Your other options</h2><p class="small">You may also be able to work out a plan with your lender, refinance, or list the home with an agent, which may bring a higher price if there's time. Choosing us is your decision.</p>
+  <p class="small" style="margin-top:24px">Numbers above are estimates from information available on ${todayLong()} and will be confirmed in writing before any contract.</p>
+  </body></html>`;
+  const w = window.open("", "_blank"); if (!w) return toast("Allow pop-ups to open the offer sheet");
+  w.document.write(html); w.document.close();
+}
+
 /* ---------- QR codes to the seller page ---------- */
 const sellUrl = l => location.origin + "/sell" + (l && l.id ? "?ref=" + encodeURIComponent(l.id) : "");
 function qrDataURL(url){ try { if (typeof qrcode === "undefined") return ""; const q = qrcode(0, "M"); q.addData(url); q.make(); return q.createDataURL(4, 2); } catch { return ""; } }
@@ -794,7 +931,7 @@ function showOut(text, isLetter){
     ${LEGAL}`;
   $("#copy").onclick = () => navigator.clipboard?.writeText($("#txt").innerText).then(() => toast("Copied"));
   if (isLetter){
-    $("#print").onclick = () => printLetters([{l: currentLead, text: $("#txt").innerText}]);
+    $("#print").onclick = () => { printLetters([{l: currentLead, text: $("#txt").innerText}]); logLetters([currentLead], "printed"); };
     $("#mailOne").onclick = () => mailLetters([{l: currentLead, text: $("#txt").innerText}]);
   }
 }
@@ -927,6 +1064,7 @@ async function mailLetters(items){
         if (res.ok) { ok++;
           const tag = `${r.mode === "live" ? "Mailed" : "TEST letter"} ${new Date().toISOString().slice(0,10)} (${res.id})${res.expected ? ", arrives ~" + res.expected : ""}`;
           const ch = {lastLetter: tag, notes: ((l.notes || "") + "\n" + tag).trim()};
+          if (r.mode === "live") ch.letters = [...(l.letters || []), {date: new Date().toISOString().slice(0, 10), via: "Lob", id: res.id}];
           if (r.mode === "live" && ["New","Reviewed"].includes(l.status || "New")) ch.status = "Contacted";
           await patch(l, ch);
         } else errs.push(`${l.address}: ${res.error}`);
@@ -935,6 +1073,13 @@ async function mailLetters(items){
       if (errs.length) alert("Some letters failed:\n\n" + errs.join("\n"));
     } catch (e) { $("#go").disabled = false; $("#go").textContent = "Try again"; toast(e.message); }
   };
+}
+async function logLetters(ls, via){
+  if (!confirm(`Log ${ls.length} letter${ls.length > 1 ? "s" : ""} as sent (${via})? This counts them in Results.`)) return;
+  const today = new Date().toISOString().slice(0, 10);
+  for (const l of ls) { const ch = {letters: [...(l.letters || []), {date: today, via}], lastLetter: `Printed ${today}`};
+    if (["New", "Reviewed"].includes(l.status || "New")) ch.status = "Contacted"; await patch(l, ch); }
+  toast("Letters logged");
 }
 const sessionPin = () => { try { return sessionStorage.getItem("lf_pin") || ""; } catch { return ""; } };
 const savedLeads = () => leads.filter(l => l.saved && l.status !== "Dead");
@@ -993,7 +1138,7 @@ $("#menuBtn").onclick = () => {
       <div style="text-align:center">${q ? `<img src="${q}" style="width:180px;height:180px;image-rendering:pixelated">` : ""}<div style="word-break:break-all;font-weight:700;margin-top:6px">${esc(u)}</div></div>
       <div class="btns"><a class="btn primary" href="${esc(u)}" target="_blank" rel="noopener">Open page</a><button class="btn" id="cpy">Copy link</button><button class="btn" id="cls">Close</button></div></div>`);
     $("#cpy").onclick = () => navigator.clipboard?.writeText(u).then(() => toast("Link copied")); $("#cls").onclick = closeModal; };
-  $("#mPrintAll").onclick = () => { const s = savedLeads(); if (!s.length) return toast("Save ♥ some leads first"); printLetters(s.map(l => ({l, text: letterText(l)}))); };
+  $("#mPrintAll").onclick = () => { const s = savedLeads(); if (!s.length) return toast("Save ♥ some leads first"); printLetters(s.map(l => ({l, text: letterText(l)}))); logLetters(s, "printed"); };
   $("#mMailAll").onclick = () => { const s = savedLeads(); if (!s.length && mailInfo.enabled) return toast("Save ♥ some leads first"); mailLetters(s.map(l => ({l, text: letterText(l)}))); };
 };
 const HEAD_MAP = {"amount owed":"amountOwed","address":"address","city":"city","county":"county","zip":"zip","lead type":"leadType","sale / key date":"keyDate","key date":"keyDate","sale date":"keyDate","status":"status","est. value":"estValue","est value":"estValue","property type":"propertyType","home type":"propertyType","owner":"owner","owner (public record)":"owner","owner mailing address":"ownerMailing","phone":"phone","case / sale #":"caseNumber","case #":"caseNumber","source link":"sourceUrl","notes":"notes","lender":"lender","tax owed":"taxOwed","lat":"lat","lng":"lng"};
