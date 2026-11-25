@@ -415,7 +415,7 @@ function cardHTML(l, mode){
     <div class="body">
       <div class="price">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"}<small>${l.amountOwedSource === "original-loan" ? "orig. loan" : "owed"}</small></div>
       ${facts ? `<div class="facts">${facts}</div>` : ""}
-      ${(() => { const e = mortgageEstimate(l); return !e.ok ? `<div class="facts" style="color:var(--muted)"><span>Add loan amount to estimate payment &amp; amount behind</span></div>` : `<div class="facts" style="color:var(--ink2)"><span>≈ <b>${money(e.piti)}</b>/mo</span>${e.arrears != null ? `<span class="sep">|</span><span>≈ <b>${short(e.arrears)}</b> behind</span>` : ""}<span class="sep">|</span><span>≈ ${short(e.balance)} owed</span></div>` : ""; })()}
+      ${(() => { const e = mortgageEstimate(l); return !e.ok ? `<div class="facts" style="color:var(--muted)"><span>Add loan amount to estimate payment &amp; amount behind</span></div>` : `<div class="facts" style="color:var(--ink2)"><span>≈ <b>${money(e.piti)}</b>/mo</span>${e.arrears != null ? `<span class="sep">|</span><span>≈ <b>${short(e.arrears)}</b> behind</span>` : ""}<span class="sep">|</span><span>≈ ${short(e.balance)} owed</span></div>`; })()}
       <div class="addr">${esc(fullAddr(l))}</div>
       <div class="meta"><span>${[l.propertyType ? esc(l.propertyType) : "", l.keyDate ? "Key date " + fmtDate(l.keyDate) : esc(countyOf(l)) + " County"].filter(Boolean).join(" · ")}</span>
         <span class="status st-${st.split(" ")[0]}">${esc(st)}</span></div>
