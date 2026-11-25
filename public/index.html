@@ -726,7 +726,8 @@ function redFlags(l){
   const hoa = parties.filter(p => /ASSOC|HOA|OWNERS|CONDOMINIUM|COMMUNITY|METRO(POLITAN)? DIST/i.test(p));
   const gov = parties.filter(p => /INTERNAL REVENUE|IRS|UNITED STATES|DEPARTMENT OF REVENUE|TREASURY|SECRETARY OF HOUSING|HUD|SMALL BUSINESS/i.test(p));
   const lenders = parties.filter(p => LENDERISH.test(p) && !p.toUpperCase().includes(holder) && !/MERS|MORTGAGE ELECTRONIC/i.test(p) && !hoa.includes(p) && !gov.includes(p));
-  if (l.bankruptcy) add("red", `Bankruptcy on file: ${l.bankruptcy}. Don't sign anything until an attorney checks the bankruptcy status.`);
+  if (l.bankruptcy) { const bd = (String(l.bankruptcy).match(/\d{1,2}\/\d{1,2}\/\d{4}/) || [])[0]; const ch = (String(l.bankruptcy).match(/\b(7|11|13)\b(?!\/)/) || [])[1];
+    add("red", `Bankruptcy filed${bd ? " " + bd : ""}${ch ? " (Chapter " + ch + ")" : ""}, per the Public Trustee file. The automatic stay usually pauses the sale, and buying from someone in bankruptcy can need court approval. Have an attorney check before you sign anything.`); }
   if (gov.length) add("red", `Government party in the foreclosure file: ${gov.slice(0,3).join("; ")}. Could be an IRS/state tax lien or a HUD partial claim that must be paid or survives.`);
   if (lenders.length) add("amber", `Other lenders in the file: ${lenders.slice(0,3).join("; ")}. Could be a second mortgage, HELOC or old loan. Confirm with a title search.`);
   if (hoa.length) add("amber", `HOA or district in the file: ${hoa.slice(0,2).join("; ")}. Expect HOA dues and possibly an HOA lien to pay.`);
