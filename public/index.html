@@ -349,9 +349,12 @@ const monthsBetween = (a, b) => Math.max(0, Math.round((new Date(b + "T12:00:00"
 function balanceAfter(P, ratePct, n, k){ const r = ratePct / 1200; if (!r) return P * (1 - k / n); const pay = P * r / (1 - Math.pow(1 + r, -n)); return P * Math.pow(1 + r, k) - pay * (Math.pow(1 + r, k) - 1) / r; }
 function mortgageEstimate(l){
   const orig = l.originalLoan ?? (l.amountOwedSource === "original-loan" ? l.amountOwed : null);
-  if (!orig || !l.loanDate) return {ok: false, need: [!orig && "original loan amount", !l.loanDate && "loan date"].filter(Boolean)};
+  if (!orig) return {ok: false, need: ["original loan amount"]};
+  // No loan date: assume a loan about 6 years old at the 2012–2024 average rate, and say so.
+  const dateGuessed = !l.loanDate;
+  const loanDate = l.loanDate || addMonths(new Date().toISOString().slice(0, 10), -72);
   const rateKnown = l.interestRate != null && l.interestRate !== "";
-  const rate = rateKnown ? +l.interestRate : marketRate(l.loanDate);
+  const rate = rateKnown ? +l.interestRate : dateGuessed ? 4.4 : marketRate(loanDate);
   const pi = pmt(orig, rate, 30);
   const value = l.estValue || orig * 1.15;
   const taxes = value * 0.0055 / 12, ins = 200;
@@ -360,11 +363,11 @@ function mortgageEstimate(l){
   const ned = l.nedDate || (l.keyDate ? addMonths(l.keyDate, -2) : null);
   const defaultStart = ned ? addMonths(ned, -4) : null;
   const behind = ned ? Math.min(30, 4 + monthsBetween(ned, today)) : null;
-  const paidMonths = defaultStart ? Math.max(0, monthsBetween(l.loanDate, defaultStart)) : monthsBetween(l.loanDate, today);
+  const paidMonths = defaultStart ? Math.max(0, monthsBetween(loanDate, defaultStart)) : monthsBetween(loanDate, today);
   const balance = Math.max(0, balanceAfter(orig, rate, 360, Math.min(360, paidMonths)));
   const lateFees = behind ? behind * pi * 0.04 : 0, fcCosts = behind ? 3500 : 0;
   const arrears = behind ? behind * piti + lateFees + fcCosts : null;
-  return {ok: true, orig, rate, rateKnown, pi, taxes, ins, piti, ned, nedGuessed: !l.nedDate, behind, balance, arrears, payoff: arrears != null ? balance + arrears : balance, lateFees, fcCosts, paidMonths};
+  return {ok: true, dateGuessed, orig, rate, rateKnown, pi, taxes, ins, piti, ned, nedGuessed: !l.nedDate, behind, balance, arrears, payoff: arrears != null ? balance + arrears : balance, lateFees, fcCosts, paidMonths};
 }
 
 /* ---------- Sub-To fit score (0-100): how good a candidate for taking over the existing loan ---------- */
@@ -412,7 +415,7 @@ function cardHTML(l, mode){
     <div class="body">
       <div class="price">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"}<small>${l.amountOwedSource === "original-loan" ? "orig. loan" : "owed"}</small></div>
       ${facts ? `<div class="facts">${facts}</div>` : ""}
-      ${(() => { const e = mortgageEstimate(l); return e.ok ? `<div class="facts" style="color:var(--ink2)"><span>≈ <b>${money(e.piti)}</b>/mo</span>${e.arrears != null ? `<span class="sep">|</span><span>≈ <b>${short(e.arrears)}</b> behind</span>` : ""}<span class="sep">|</span><span>≈ ${short(e.balance)} owed</span></div>` : ""; })()}
+      ${(() => { const e = mortgageEstimate(l); return !e.ok ? `<div class="facts" style="color:var(--muted)"><span>Add loan amount to estimate payment &amp; amount behind</span></div>` : `<div class="facts" style="color:var(--ink2)"><span>≈ <b>${money(e.piti)}</b>/mo</span>${e.arrears != null ? `<span class="sep">|</span><span>≈ <b>${short(e.arrears)}</b> behind</span>` : ""}<span class="sep">|</span><span>≈ ${short(e.balance)} owed</span></div>` : ""; })()}
       <div class="addr">${esc(fullAddr(l))}</div>
       <div class="meta"><span>${[l.propertyType ? esc(l.propertyType) : "", l.keyDate ? "Key date " + fmtDate(l.keyDate) : esc(countyOf(l)) + " County"].filter(Boolean).join(" · ")}</span>
         <span class="status st-${st.split(" ")[0]}">${esc(st)}</span></div>
@@ -744,10 +747,10 @@ function openLead(id){
 
       <div class="sect">Estimated mortgage</div>
       ${(() => { const e = mortgageEstimate(l);
-        if (!e.ok) return `<div class="nums"><div class="num"><div class="why">To estimate the payment and how far behind they are, add the <b>${e.need.join(" and ")}</b> below (both are in the foreclosure filing / deed of trust).</div></div></div>`;
+        if (!e.ok) return `<div class="nums"><div class="num"><div class="why">To estimate the payment and how far behind they are, add the <b>original loan amount</b> below. It's printed in the foreclosure filing ("in the original amount of $…").${l.sourceUrl ? ` <a href="${esc(l.sourceUrl)}" target="_blank" rel="noopener noreferrer">Open the filing ↗</a>` : ""}</div></div></div>`;
         const row = (lbl, val, conf, why) => `<div class="num"><div class="row"><span class="lbl">${lbl}</span>${confPill(conf)}</div><div class="val">${val}</div><div class="why">${why}</div></div>`;
         return `<div class="nums">
-          ${row("Monthly payment (principal, interest, taxes, insurance)", money(e.piti) + "/mo", e.rateKnown ? ["med","Medium"] : ["low","Estimate"], `P&amp;I ${money(e.pi)} on the ${money(e.orig)} original loan over 30 years at ${e.rate}%${e.rateKnown ? "" : ` (the average 30-year rate when the loan was made, ${fmtDate(l.loanDate)})`}, plus about ${money(e.taxes)} taxes and ${money(e.ins)} insurance. FHA/VA loans and PMI can add more.`)}
+          ${row("Monthly payment (principal, interest, taxes, insurance)", money(e.piti) + "/mo", e.rateKnown ? ["med","Medium"] : ["low","Estimate"], `P&amp;I ${money(e.pi)} on the ${money(e.orig)} original loan over 30 years at ${e.rate}%${e.rateKnown ? "" : e.dateGuessed ? " (loan date unknown, so this uses the 2012–2024 average rate; add the loan date below to sharpen it)" : ` (the average 30-year rate when the loan was made, ${fmtDate(l.loanDate)})`}, plus about ${money(e.taxes)} taxes and ${money(e.ins)} insurance. FHA/VA loans and PMI can add more.`)}
           ${e.behind != null ? row("How far behind", `≈ ${e.behind} months · ${money(e.arrears)}`, ["low","Estimate"], `Lenders can't start a foreclosure until a loan is more than 120 days late, so we assume about 4 months behind at the foreclosure notice (${e.nedGuessed ? "estimated around " : ""}${fmtDate(e.ned)}) plus every month since. Includes about ${money(e.lateFees)} late fees and ${money(e.fcCosts)} foreclosure costs.`) : ""}
           ${row("Loan balance (not counting what's past due)", "≈ " + money(e.balance), ["low","Estimate"], `What's left after about ${e.paidMonths} on-time payments.`)}
           ${e.arrears != null ? row("Estimated total payoff", "≈ " + money(e.payoff), ["low","Estimate"], "Balance plus what's past due. The real number comes from the lender's payoff or reinstatement quote.") : ""}
