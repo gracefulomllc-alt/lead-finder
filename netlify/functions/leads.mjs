@@ -13,7 +13,7 @@ const STATUSES = ["New", "Reviewed", "Contacted", "Offer Made", "Dead"];
 const FIELDS = [
   "amountOwed", "address", "city", "county", "zip", "leadType", "keyDate",
   "status", "estValue", "propertyType", "owner", "ownerMailing", "caseNumber",
-  "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen", "amountOwedSource", "estValueSource", "phone", "lastLetter", "loanDate", "interestRate", "deal", "checklist", "payments", "hot", "email", "source", "letters", "comps", "portfolio", "sqft", "originalLoan", "nedDate",
+  "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen", "amountOwedSource", "estValueSource", "phone", "lastLetter", "loanDate", "interestRate", "deal", "checklist", "payments", "hot", "email", "source", "letters", "comps", "portfolio", "sqft", "originalLoan", "nedDate", "balanceAsOf", "loanType", "holder",
 ];
 
 const json = (body, status = 200) =>
