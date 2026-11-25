@@ -14,7 +14,7 @@ const FIELDS = [
   "amountOwed", "address", "city", "county", "zip", "leadType", "keyDate",
   "status", "estValue", "propertyType", "owner", "ownerMailing", "caseNumber",
   "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen", "amountOwedSource", "estValueSource", "phone", "lastLetter", "loanDate", "interestRate", "deal", "checklist", "payments", "hot", "email", "source", "letters", "comps", "portfolio", "sqft", "originalLoan", "nedDate", "balanceAsOf", "loanType", "holder", "ptStatus",
-  "cureIntentDeadline", "cureDeadline", "cureTotal", "cureStatementDate", "lenderBid", "bankruptcy", "lienParties", "photos",
+  "cureIntentDeadline", "cureDeadline", "cureTotal", "cureStatementDate", "lenderBid", "bankruptcy", "lienParties", "photos", "beds", "baths", "yearBuilt",
 ];
 
 const json = (body, status = 200) =>
@@ -45,7 +45,7 @@ const fixCity = (c) => {
 function clean(input) {
   const out = {};
   for (const f of FIELDS) if (input[f] !== undefined) out[f] = input[f];
-  for (const n of ["amountOwed", "estValue", "taxOwed", "lat", "lng", "originalLoan", "sqft", "cureTotal", "lenderBid"]) {
+  for (const n of ["amountOwed", "estValue", "taxOwed", "lat", "lng", "originalLoan", "sqft", "cureTotal", "lenderBid", "beds", "baths", "yearBuilt"]) {
     if (out[n] === "" || out[n] === null) out[n] = null;
     else if (out[n] !== undefined) {
       const v = Number(String(out[n]).replace(/[$,\s]/g, ""));

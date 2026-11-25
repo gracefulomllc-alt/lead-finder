@@ -467,6 +467,18 @@ function subTo(l){
 const subColor = s => s >= 70 ? "var(--green)" : s >= 50 ? "#b7791f" : "#9a9aa3";
 
 /* ---------- cards ---------- */
+// beds / baths / size / year — from fields, or read out of assessor notes saved earlier
+function homeInfo(l){
+  const n = String(l.notes || "");
+  const num = re => { const m = n.match(re); return m ? +m[1].replace(/,/g, "") : null; };
+  return {beds: l.beds ?? num(/(\d+)\s*bd\b/), baths: l.baths ?? num(/(\d+(?:\.\d+)?)\s*ba\b/),
+    sqft: l.sqft ?? num(/([\d,]{3,6})\s*sq\s*ft/), year: l.yearBuilt ?? num(/built\s+(\d{4})/)};
+}
+function homeFacts(l){
+  const h = homeInfo(l);
+  const bits = [h.beds ? `<b>${h.beds}</b> bd` : "", h.baths ? `<b>${h.baths}</b> ba` : "", h.sqft ? `<b>${Number(h.sqft).toLocaleString()}</b> sq ft` : "", h.year ? `Built <b>${h.year}</b>` : ""].filter(Boolean);
+  return bits.length ? `<div class="facts" style="color:var(--ink)">${bits.join('<span class="sep">|</span>')}</div>` : "";
+}
 function cardHTML(l, mode){
   const eq = equity(l);
   const st = (l.status || "New");
@@ -483,6 +495,7 @@ function cardHTML(l, mode){
     </div>
     <div class="body">
       <div class="price">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"}<small>${l.amountOwedSource === "original-loan" ? "orig. loan" : "owed"}</small></div>
+      ${homeFacts(l)}
       ${facts ? `<div class="facts">${facts}</div>` : ""}
       ${(() => { const e = mortgageEstimate(l); return !e.ok ? `<div class="facts" style="color:var(--muted)"><span>Add loan amount to estimate payment &amp; amount behind</span></div>` : `<div class="facts" style="color:var(--ink2)"><span>≈ <b>${money(e.piti)}</b>/mo</span>${e.arrears != null ? `<span class="sep">|</span><span>≈ <b>${short(e.arrears)}</b> behind</span>` : ""}<span class="sep">|</span><span>≈ ${short(e.balance)} owed</span></div>`; })()}
       <details class="how" onclick="event.stopPropagation()"><summary style="font-size:12px;color:var(--accent,#0b6bcb);cursor:pointer;margin-top:4px">ⓘ How do we know?</summary>${howHTML(l)}</details>
@@ -1061,6 +1074,7 @@ function openLead(id){
       <a class="svbtn" target="_blank" rel="noopener noreferrer" href="${streetViewLink(l)}">👁 Walk around in Street View</a></div>
     <div class="pad">
       <div class="daddr" style="font-size:19px;font-weight:800">${esc(fullAddr(l))}</div>
+      ${homeFacts(l)}
       ${aerialHTML(l)}
       <div class="sect">Your photos</div>
       <div id="myPhotos"></div>
