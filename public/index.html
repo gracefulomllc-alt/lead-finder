@@ -181,6 +181,8 @@ details.tool>div{padding:0 14px 14px}
 .leaflet-div-icon{background:none;border:0}
 .esri-credit{position:absolute;right:6px;bottom:4px;font-size:10px;color:#fff;background:#0007;padding:0 4px;border-radius:4px;pointer-events:none}
 .photo .tag,.photo .subto,.photo .newtag,.photo .heart,.photo .svbtn,.photo .close,.photo .esri-credit{z-index:2}
+.seg{display:inline-flex}.seg .btn{border-radius:0;padding:6px 10px}.seg .btn:first-child{border-radius:8px 0 0 8px}.seg .btn:last-child{border-radius:0 8px 8px 0}.seg .btn.on{background:var(--blue);color:#fff}
+.head{flex-wrap:wrap}
 </style>
 </head>
 <body>
@@ -200,7 +202,7 @@ details.tool>div{padding:0 14px 14px}
     <select class="fbtn" id="fMax"><option value="">Max owed</option><option value="100000">Under $100K</option><option value="150000">Under $150K</option><option value="200000">Under $200K</option><option value="300000">Under $300K</option><option value="400000">Under $400K</option></select>
     <select class="fbtn" id="fProp"><option value="">Home type</option><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select>
     <select class="fbtn" id="fStatus"><option value="active">Status: Active</option><option value="">Status: All</option><option>New</option><option>Reviewed</option><option>Contacted</option><option>Offer Made</option><option value="saved">Saved ♥</option><option>Dead</option></select>
-    <select class="fbtn" id="fSort"><option value="subto">Sort: Best Sub-To fit</option><option value="cureAsc">Sort: Least behind (cheapest to catch up)</option><option value="owedAsc">Sort: Cheapest owed</option><option value="owedDesc">Sort: Most owed</option><option value="equityDesc">Sort: Most equity</option><option value="dateAsc">Sort: Key date</option><option value="newest">Sort: Newest</option></select>
+    <select class="fbtn" id="fSort"><option value="subto">Sort: Best fit (Live-in / Flip)</option><option value="cureAsc">Sort: Least behind (cheapest to catch up)</option><option value="owedAsc">Sort: Cheapest owed</option><option value="owedDesc">Sort: Most owed</option><option value="equityDesc">Sort: Most equity</option><option value="dateAsc">Sort: Key date</option><option value="newest">Sort: Newest</option></select>
   </div>
 </div>
 
@@ -208,7 +210,7 @@ details.tool>div{padding:0 14px 14px}
   <!-- NEW FEED -->
   <section class="view on" id="v-new">
     <div class="crumb" id="crumbNew"></div>
-    <div class="head"><h1 id="newTitle">New leads</h1><span class="sub">Within 40 mi of I-25 &amp; I-70 · Save, pass, or mark contacted to clear them</span><button class="btn primary" id="routeBtn" style="white-space:nowrap;align-self:center">🚗 Plan route</button></div>
+    <div class="head"><h1 id="newTitle">New leads</h1><span class="sub">Within 40 mi of I-25 &amp; I-70 · Save, pass, or mark contacted to clear them</span><span class="seg" style="align-self:center;white-space:nowrap"><button class="btn" data-mode="live">🏠 Live-in</button><button class="btn" data-mode="flip">🔨 Flip</button></span><button class="btn primary" id="routeBtn" style="white-space:nowrap;align-self:center">🚗 Plan route</button></div>
     <div class="grid feed" id="newGrid"></div>
   </section>
 
@@ -397,7 +399,7 @@ function filtered(opts = {}){
     equityDesc:(a,b)=>(equity(b)??-big)-(equity(a)??-big),
     dateAsc:(a,b)=>String(a.keyDate||"9999").localeCompare(String(b.keyDate||"9999")),
     newest:(a,b)=>String(b.firstSeen||"").localeCompare(String(a.firstSeen||"")),
-    subto:(a,b)=>subTo(b).score-subTo(a).score,
+    subto:(a,b)=>fitScore(b).score-fitScore(a).score,
     cureAsc:(a,b)=>(mortgageEstimate(a).arrears ?? big)-(mortgageEstimate(b).arrears ?? big),
   }[sort]).sort((a,b) => (b.hot && b.status !== "Dead" ? 1 : 0) - (a.hot && a.status !== "Dead" ? 1 : 0));
 }
@@ -440,6 +442,70 @@ function mortgageEstimate(l){
 }
 
 /* ---------- Sub-To fit score (0-100): how good a candidate for taking over the existing loan ---------- */
+/* ---------- goal mode (live-in vs flip), deal strategy, owner-stress signals ---------- */
+let goalMode = (() => { try { return localStorage.getItem("lf_mode") || "live"; } catch { return "live"; } })();
+function setGoalMode(m){ goalMode = m; try { localStorage.setItem("lf_mode", m); } catch {} document.querySelectorAll("[data-mode]").forEach(b => b.classList.toggle("on", b.dataset.mode === m)); render(); }
+function parseDate(s){ s = String(s || ""); let m = s.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/); if (m) return `${m[3]}-${m[1].padStart(2,"0")}-${m[2].padStart(2,"0")}`;
+  m = s.match(/\b(19|20)(\d{2})(\d{2})(\d{2})\b/); if (m) return `${m[1]}${m[2]}-${m[3]}-${m[4]}`; m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[0] : ""; }
+function ownedSince(l){
+  if (l.lastSaleDate) return parseDate(l.lastSaleDate);
+  const m = String(l.notes || "").match(/last sale \$[\d,]+ \(([^)]+)\)/); return m ? parseDate(m[1]) : "";
+}
+const yearsSince = d => d ? (Date.now() - new Date(d + "T12:00:00")) / (365.25 * 864e5) : null;
+const ltvOf = l => (l.amountOwed != null && l.estValue && l.leadType !== "Tax-delinquent") ? l.amountOwed / l.estValue : null;
+function strategy(l){
+  const ltv = ltvOf(l);
+  if (l.leadType === "Tax-delinquent" && !l.nedDate) return {key: "cash", label: "Cash / seller finance", color: "#6b7280", why: "Behind on taxes, probably no mortgage to take over. Think seller financing or a fair cash offer."};
+  if (ltv == null) return {key: "unknown", label: "Check equity", color: "#6b7280", why: "Owed vs value unknown. Get the balance and run comps first."};
+  if (ltv > 1) return {key: "short", label: "Short sale / pass", color: "#9a9aa3", why: "Owes more than it's worth. Sub-to only works if you're happy carrying a loan above value; otherwise short sale or pass."};
+  if (ltv >= 0.85) return {key: "subto", label: "Sub-to", color: "var(--green)", why: "Thin equity: selling wouldn't net them much, so taking over the payments is real relief. Best sub-to fit."};
+  if (ltv >= 0.65) return {key: "subto-flip", label: "Sub-to or flip", color: "#0b6bcb", why: "Some equity: sub-to can work if you pay a fair amount for their equity, or buy it to fix and flip."};
+  return {key: "fair", label: "Fair offer / novation", color: "#b7791f", why: "Big equity. Colorado's Foreclosure Protection Act targets deals that take large equity cheaply. Offer a fair price, a novation (you fix and sell it, split the profit), or refer it to an agent."};
+}
+function stressSignals(l){
+  const s = []; const add = (icon, label, why) => s.push({icon, label, why});
+  if (l.probate) add("🕊", "Probate", `Estate notice: ${esc(l.probate.decedent || "owner")} ${l.probate.date ? "(" + fmtDate(l.probate.date) + ")" : ""}. Heirs often want out of an inherited house with a loan. Be respectful; talk to the personal representative.`);
+  const yrs = yearsSince(ownedSince(l));
+  const abs = absentee(l);
+  if (abs === true && (yrs == null || yrs >= 3)) add("🏚", "Tired landlord", `Owner gets mail somewhere else${yrs != null ? " and has owned it " + Math.floor(yrs) + " yrs" : ""}. Likely a rental or vacant; landlords in foreclosure often want out.`);
+  if (yrs != null && yrs >= 10 && (l.nedDate || l.leadType === "Pre-foreclosure" || l.leadType === "Both")) add("⏳", `Owned ${Math.floor(yrs)} yrs`, "Long-time owner now in foreclosure: usually a life event (job, health, divorce, death). Lead with empathy.");
+  if (l.bankruptcy) add("⚖️", "Bankruptcy", "Filed bankruptcy: talk to an attorney before any deal.");
+  if (l.leadType === "Both" || (l.taxOwed && l.nedDate)) add("💸", "Taxes + mortgage", "Behind on property taxes and the mortgage at the same time: serious money stress.");
+  const di = daysUntil(l.cureIntentDeadline); if (di != null && di >= 0 && di <= 21) add("⏰", "Cure deadline soon", `Intent-to-cure deadline in ${di} days.`);
+  return s;
+}
+const _fit = new Map();
+function fitScore(l){
+  const ck = l.id + goalMode; if (_fit.has(ck)) return _fit.get(ck);
+  const r = fitScore0(l); _fit.set(ck, r); return r;
+}
+function fitScore0(l){
+  const base = subTo(l).score, h = homeInfo(l), e = mortgageEstimate(l), ltv = ltvOf(l), stress = Math.min(12, stressSignals(l).length * 4);
+  let sc, parts = [];
+  if (goalMode === "flip") {
+    const spread = (l.estValue && l.amountOwed != null) ? l.estValue - l.amountOwed - (e.arrears || 0) : null;
+    const sp = spread == null ? 8 : spread / l.estValue >= 0.25 ? 35 : spread / l.estValue >= 0.15 ? 28 : spread / l.estValue >= 0.08 ? 16 : 4;
+    parts.push([sp, 35, spread == null ? "Spread unknown" : `Spread after catch-up ≈ ${short(spread)}`]);
+    const dated = h.year ? (h.year < 1980 ? 12 : h.year < 2000 ? 8 : 3) : 5; parts.push([dated, 12, h.year ? `Built ${h.year}${h.year < 1990 ? ": room to add value" : ""}` : "Age unknown"]);
+    const days = daysUntil(l.keyDate); const t = days == null ? 6 : days < 0 ? 2 : days <= 75 ? 15 : 10; parts.push([t, 15, days == null ? "No sale date" : `${days} days to sale`]);
+    parts.push([Math.round(base * 0.26), 26, `Sub-to basics ${base}/100`]); parts.push([stress, 12, `${stressSignals(l).length} stress signal(s)`]);
+  } else {
+    parts.push([Math.round(base * 0.6), 60, `Sub-to basics ${base}/100 (rate, equity, timing)`]);
+    const bd = h.beds ? (h.beds >= 3 ? 8 : 3) : 4; parts.push([bd, 8, h.beds ? `${h.beds} bedrooms` : "Bedrooms unknown"]);
+    const ba = h.baths ? (h.baths >= 2 ? 5 : 2) : 2; parts.push([ba, 5, h.baths ? `${h.baths} baths` : "Baths unknown"]);
+    const pay = e.ok && e.piti ? (e.piti <= 2500 ? 10 : e.piti <= 3500 ? 6 : 2) : 4; parts.push([pay, 10, e.ok && e.piti ? `Payment ≈ ${money(e.piti)}/mo` : "Payment unknown"]);
+    const age = h.year ? (h.year >= 1995 ? 5 : h.year >= 1970 ? 3 : 1) : 2; parts.push([age, 5, h.year ? `Built ${h.year}` : "Age unknown"]);
+    parts.push([stress, 12, `${stressSignals(l).length} stress signal(s)`]);
+  }
+  sc = Math.min(100, parts.reduce((a, p) => a + p[0], 0));
+  if (strategy(l).key === "fair" && goalMode !== "flip") sc = Math.min(sc, 60); // big equity: not a sub-to target
+  return {score: sc, parts, label: sc >= 70 ? "Strong" : sc >= 50 ? "Possible" : "Weak"};
+}
+function stressChips(l){
+  const s = stressSignals(l), st = strategy(l);
+  return `<div style="display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 2px"><span title="${esc(st.why)}" style="font-size:12px;font-weight:700;color:#fff;background:${st.color};padding:2px 8px;border-radius:10px">${st.label}</span>${s.map(x => `<span title="${esc(x.why.replace(/<[^>]+>/g,""))}" style="font-size:12px;font-weight:600;background:#fff4d6;border:1px solid #e9cf7e;padding:1px 7px;border-radius:10px">${x.icon} ${esc(x.label)}</span>`).join("")}</div>`;
+}
+
 function subTo(l){
   const parts = [];
   const rate = l.interestRate ?? l.deal?.rate ?? (l.loanDate ? marketRate(l.loanDate) : null);
@@ -489,7 +555,7 @@ function cardHTML(l, mode){
   return `<article class="card" data-id="${esc(l.id)}">
     <div class="photo">${photoHTML(l)}
       <span class="tag"><i style="background:${typeColor(l.leadType)}"></i>${l.hot ? "🔥 " : ""}${esc(l.leadType === "Inbound" ? "Seller reached out" : l.leadType || "Lead")}</span>
-      <span class="subto" style="background:${subColor(subTo(l).score)}">Sub-To ${subTo(l).score}</span>
+      <span class="subto" style="background:${subColor(fitScore(l).score)}">${goalMode === "flip" ? "Flip" : "Live-in"} ${fitScore(l).score}</span>
       ${st === "New" && mode !== "feed" ? `<span class="newtag">NEW</span>` : ""}
       <button class="heart" data-heart="${esc(l.id)}" aria-label="Save">${heartSVG(l.saved)}</button>
     </div>
@@ -497,6 +563,7 @@ function cardHTML(l, mode){
       <div class="price">${l.amountOwed != null ? money(l.amountOwed) : "Amount TBD"}<small>${l.amountOwedSource === "original-loan" ? "orig. loan" : "owed"}</small></div>
       ${homeFacts(l)}
       ${facts ? `<div class="facts">${facts}</div>` : ""}
+      ${stressChips(l)}
       ${(() => { const e = mortgageEstimate(l); return !e.ok ? `<div class="facts" style="color:var(--muted)"><span>Add loan amount to estimate payment &amp; amount behind</span></div>` : `<div class="facts" style="color:var(--ink2)"><span>≈ <b>${money(e.piti)}</b>/mo</span>${e.arrears != null ? `<span class="sep">|</span><span>≈ <b>${short(e.arrears)}</b> behind</span>` : ""}<span class="sep">|</span><span>≈ ${short(e.balance)} owed</span></div>`; })()}
       <details class="how" onclick="event.stopPropagation()"><summary style="font-size:12px;color:var(--accent,#0b6bcb);cursor:pointer;margin-top:4px">ⓘ How do we know?</summary>${howHTML(l)}</details>
       <div class="addr">${esc(fullAddr(l))}</div>
@@ -593,6 +660,7 @@ function renderCounties(){
   });
 }
 function render(){
+  _fit.clear();
   fillPlaceFilters();
   if (view === "counties") renderCounties();
   // filter button highlight
@@ -967,7 +1035,7 @@ async function planRoute(){
     const pool = leads.filter(l => l.lat != null && l.lng != null && !["Dead"].includes(l.status) && !isClosed(l)
         && !(l.keyDate && l.keyDate < today) && (incTax || l.leadType !== "Tax-delinquent"))
       .map(l => { const pt = [l.lat, l.lng]; const off = end ? miles(start, pt) + miles(pt, end) - direct : miles(start, pt);
-        return {l, pt, off, score: subTo(l).score + (l.saved ? 10 : 0) + (l.hot ? 15 : 0)}; })
+        return {l, pt, off, score: fitScore(l).score + (l.saved ? 10 : 0) + (l.hot ? 15 : 0)}; })
       .filter(x => x.off <= R);
     if (!pool.length) { out.innerHTML = `<p>No open leads with a map pin ${end ? "within " + R + " mi of your way" : "within " + R + " mi"}. Try a bigger ${end ? "detour" : "radius"}.</p>`; return; }
     // rank by fit, lightly penalising distance so a slightly lower score next door beats a top score far away
@@ -979,7 +1047,7 @@ async function planRoute(){
     const legs = ordered.map((s, i) => miles(i ? ordered[i - 1].pt : start, s.pt) * 1.3);
     out.innerHTML = `<div id="rMap" style="height:260px;border-radius:12px;margin:10px 0"></div>
       <div style="font-size:14px;color:var(--ink2);margin-bottom:6px">${ordered.length} stops · about <b>${Math.round(total)} mi</b> of driving (≈ ${Math.round(total / 30 * 60 + ordered.length * 10)} min with 10 min per door)</div>
-      ${ordered.map((s, i) => { const l = s.l, e = mortgageEstimate(l); return `<div class="num" data-open="${esc(l.id)}" style="cursor:pointer;margin:6px 0"><div class="row"><span class="lbl"><b>${i + 1}.</b> ${esc(l.address)}, ${esc(l.city || "")}</span><b style="color:${subColor(subTo(l).score)}">${subTo(l).score}</b></div>
+      ${ordered.map((s, i) => { const l = s.l, e = mortgageEstimate(l); return `<div class="num" data-open="${esc(l.id)}" style="cursor:pointer;margin:6px 0"><div class="row"><span class="lbl"><b>${i + 1}.</b> ${esc(l.address)}, ${esc(l.city || "")}</span><b style="color:${subColor(fitScore(l).score)}">${fitScore(l).score}</b></div>
         <div class="why">${legs[i].toFixed(1)} mi · ${esc(l.owner || "Owner unknown")}${l.interestRate ? " · " + l.interestRate + "%" : ""}${e.ok && e.arrears != null ? " · ≈ " + short(e.arrears) + " behind" : ""}${l.keyDate ? " · sale " + fmtDate(l.keyDate) : ""}${l.cureIntentDeadline && daysUntil(l.cureIntentDeadline) >= 0 && daysUntil(l.cureIntentDeadline) <= 14 ? " · ⏰ cure notice due " + fmtDate(l.cureIntentDeadline) : ""}</div></div>`; }).join("")}
       <div class="btns"><a class="btn primary" id="rGmaps" target="_blank" rel="noopener noreferrer" href="${gmapsRoute(start, ordered, end)}">▶ Start in Google Maps</a>
         <button class="btn" id="rPackets">🖨 Packets for all stops</button><button class="btn" id="rAgain">↻ Re-plan</button></div>
@@ -1143,6 +1211,11 @@ function openLead(id){
       <div class="grid2"><div><label>Original loan amount</label><input class="field" id="eOrig" inputmode="decimal" value="${l.originalLoan ?? (l.amountOwedSource === "original-loan" ? l.amountOwed ?? "" : "")}" placeholder="$ from the filing"></div>
         <div><label>Foreclosure notice (NED) date</label><input class="field" type="date" id="eNed" value="${esc(l.nedDate || "")}"></div></div>
 
+      <div class="sect">Best play &amp; owner situation</div>
+      ${stressChips(l)}
+      <div class="nums"><div class="num"><div class="why">${esc(strategy(l).why)}</div></div>${stressSignals(l).map(x => `<div class="num"><div class="why">${x.icon} <b>${esc(x.label)}:</b> ${x.why}</div></div>`).join("")}</div>
+      <div class="sect">${goalMode === "flip" ? "Flip" : "Live-in"} fit: <span style="color:${subColor(fitScore(l).score)}">${fitScore(l).score} · ${fitScore(l).label}</span></div>
+      <div class="nums">${fitScore(l).parts.map(p => `<div class="num"><div class="row"><span class="lbl">${esc(p[2])}</span><b>${p[0]}/${p[1]}</b></div></div>`).join("")}</div>
       <div class="sect">Sub-To fit: <span style="color:${subColor(subTo(l).score)}">${subTo(l).score} · ${subTo(l).label}</span></div>
       <div class="nums">${subTo(l).parts.map(p => `<div class="num"><div class="row"><span class="lbl">${esc(p[2])}</span><b>${p[0]}/${p[1]}</b></div></div>`).join("")}</div>
       <div class="grid2"><div><label>Loan date (deed of trust)</label><input class="field" type="date" id="eLoanDate" value="${esc(l.loanDate || "")}"></div>
@@ -1553,6 +1626,7 @@ function askKey(bad){
   $("#keyIn").onkeydown = e => { if (e.key === "Enter") $("#keySave").click(); };
 }
 $("#routeBtn").onclick = openRoutePlanner;
+document.querySelectorAll("[data-mode]").forEach(b => { b.classList.toggle("on", b.dataset.mode === goalMode); b.onclick = () => setGoalMode(b.dataset.mode); });
 $("#menuBtn").onclick = () => {
   openModal(`<div class="pad"><div class="dprice" style="font-size:22px">More</div>
     <div class="btns" style="flex-direction:column;align-items:stretch">
