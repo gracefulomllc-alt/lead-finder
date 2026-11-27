@@ -202,7 +202,7 @@ details.tool>div{padding:0 14px 14px}
     <select class="fbtn" id="fMax"><option value="">Max owed</option><option value="100000">Under $100K</option><option value="150000">Under $150K</option><option value="200000">Under $200K</option><option value="300000">Under $300K</option><option value="400000">Under $400K</option></select>
     <select class="fbtn" id="fProp"><option value="">Home type</option><option>Single-family</option><option>Duplex-4plex</option><option>Condo/Townhome</option></select>
     <select class="fbtn" id="fStatus"><option value="active">Status: Active</option><option value="">Status: All</option><option>New</option><option>Reviewed</option><option>Contacted</option><option>Offer Made</option><option value="saved">Saved ♥</option><option>Dead</option></select>
-    <select class="fbtn" id="fSort"><option value="subto">Sort: Best fit (Live-in / Flip)</option><option value="cureAsc">Sort: Least behind (cheapest to catch up)</option><option value="owedAsc">Sort: Cheapest owed</option><option value="owedDesc">Sort: Most owed</option><option value="equityDesc">Sort: Most equity</option><option value="dateAsc">Sort: Key date</option><option value="newest">Sort: Newest</option></select>
+    <select class="fbtn" id="fSort"><option value="subto">Sort: Best fit (Live-in / Flip)</option><option value="s8">Sort: Best Section 8 cash flow</option><option value="cureAsc">Sort: Least behind (cheapest to catch up)</option><option value="owedAsc">Sort: Cheapest owed</option><option value="owedDesc">Sort: Most owed</option><option value="equityDesc">Sort: Most equity</option><option value="dateAsc">Sort: Key date</option><option value="newest">Sort: Newest</option></select>
   </div>
 </div>
 
@@ -400,6 +400,7 @@ function filtered(opts = {}){
     dateAsc:(a,b)=>String(a.keyDate||"9999").localeCompare(String(b.keyDate||"9999")),
     newest:(a,b)=>String(b.firstSeen||"").localeCompare(String(a.firstSeen||"")),
     subto:(a,b)=>fitScore(b).score-fitScore(a).score,
+    s8:(a,b)=>((section8(b)||{}).cash ?? -1e9)-((section8(a)||{}).cash ?? -1e9),
     cureAsc:(a,b)=>(mortgageEstimate(a).arrears ?? big)-(mortgageEstimate(b).arrears ?? big),
   }[sort]).sort((a,b) => (b.hot && b.status !== "Dead" ? 1 : 0) - (a.hot && a.status !== "Dead" ? 1 : 0));
 }
@@ -578,6 +579,49 @@ function homeFacts(l){
   const bits = [h.beds ? `<b>${h.beds}</b> bd` : "", h.baths ? `<b>${h.baths}</b> ba` : "", h.sqft ? `<b>${Number(h.sqft).toLocaleString()}</b> sq ft` : "", h.year ? `Built <b>${h.year}</b>` : ""].filter(Boolean);
   return bits.length ? `<div class="facts" style="color:var(--ink)">${bits.join('<span class="sep">|</span>')}</div>` : "";
 }
+
+/* ---------- Section 8 rent (Colorado Division of Housing 2026 payment standards) minus utility allowance ---------- */
+const S8_PS = {"Adams":[1495,1705,2025,2630,2955,3375],"Alamosa":[775,850,1065,1405,1770,1940],"Arapahoe":[1495,1705,2025,2630,2955,3375],"Archuleta":[1023,1029,1300,1775,2050,2329],"Baca":[674,705,878,1220,1375,1580],"Bent":[710,770,980,1278,1480,1701],"Boulder":[1585,1823,2217,2790,3165,3555],"Broomfield":[1495,1705,2025,2630,2955,3375],"Chaffee":[1001,1090,1322,1838,2185,2510],"Cheyenne":[720,725,950,1211,1520,1745],"Clear Creek":[1495,1705,2025,2630,2955,3375],"Conejos":[674,781,920,1205,1240,1385],"Costilla":[720,750,935,1220,1515,1735],"Crowley":[922,930,1220,1515,1962,2255],"Custer":[770,850,1060,1315,1690,1945],"Delta":[830,895,1140,1515,1685,1937],"Denver":[1495,1705,2025,2630,2955,3375],"Dolores":[772,918,1006,1310,1576,1811],"Douglas":[1495,1705,2025,2630,2955,3375],"Eagle":[1478,1690,2260,2765,3322,3819],"El Paso":[1100,1330,1650,2245,2590,2980],"Elbert":[1495,1705,2025,2630,2955,3375],"Fremont":[850,935,1210,1615,1725,1940],"Garfield":[1200,1255,1580,2125,2550,2825],"Gilpin":[1495,1705,2025,2630,2955,3375],"Grand":[999,1225,1430,1715,2250,2563],"Gunnison":[1001,1100,1405,1816,2247,2584],"Hinsdale":[805,875,1033,1316,1649,1896],"Huerfano":[750,820,1050,1295,1620,1850],"Jackson":[710,725,915,1200,1450,1615],"Jefferson":[1495,1705,2025,2630,2955,3375],"Kiowa":[784,788,1034,1319,1620,1862],"Kit Carson":[815,880,1095,1305,1805,2055],"La Plata":[1250,1330,1650,2134,2514,2892],"Lake":[929,1050,1300,1600,1978,2274],"Larimer":[1361,1460,1780,2410,2775,3190],"Las Animas":[719,835,1085,1410,1530,1680],"Lincoln":[785,849,1075,1360,1750,2012],"Logan":[750,860,1150,1550,1601,1779],"Mesa":[795,940,1205,1710,2005,2295],"Mineral":[929,955,1229,1579,1978,2274],"Moffat":[831,900,1135,1440,1525,1683],"Montezuma":[845,940,1195,1415,1935,2225],"Montrose":[825,935,1255,1725,1850,2125],"Morgan":[793,890,1185,1490,1815,2085],"Otero":[730,780,1005,1295,1620,1787],"Ouray":[1207,1275,1625,2175,2325,2605],"Park":[1495,1705,2025,2630,2955,3375],"Phillips":[780,830,1031,1265,1659,1908],"Pitkin":[1468,1820,2125,2575,3200,3685],"Prowers":[720,802,1010,1205,1585,1730],"Pueblo":[945,1050,1350,1652,1828,2102],"Rio Blanco":[755,820,1025,1332,1428,1641],"Rio Grande":[759,881,1000,1355,1557,1790],"Routt":[1556,1663,1885,2250,3000,3440],"Saguache":[740,755,980,1195,1379,1585],"San Juan":[1037,1200,1347,1657,1895,2180],"San Miguel":[1200,1377,1807,2290,2825,3235],"Sedgwick":[680,760,878,1053,1375,1580],"Summit":[1533,1750,2223,2835,3305,3815],"Teller":[930,1228,1375,1930,2325,2670],"Washington":[805,915,1015,1275,1335,1529],"Weld":[1100,1300,1595,2225,2350,2683],"Yuma":[855,875,1160,1405,1525,1735]};
+/* Colorado Springs area: payment standards by ZIP (2026 Small Area VPS) */
+const S8_ZIP = {"80106":[967,1121,1385,1935,2195,2525],"80118":[1978,2187,2627,3430,3848,4290],"80132":[1505,1795,2190,3080,3680,4232],"80133":[1127,1379,1631,2270,2576,2962],"80808":[810,950,1195,1660,1967,2261],"80809":[1280,1532,1865,2630,3090,3550],"80817":[1290,1540,1885,2650,3115,3585],"80819":[947,1163,1379,1910,2180,2506],"80829":[830,1040,1220,1695,2030,2335],"80831":[1585,1928,2315,3245,4025,4360],"80832":[805,920,1150,1590,1855,2130],"80833":[830,935,1165,1604,1920,2150],"80835":[1040,1135,1360,1775,1990,2287],"80840":[1480,1785,2155,3016,3580,4115],"80841":[1100,1325,1605,2245,2585,2971],"80863":[1010,1325,1486,2100,2521,2900],"80864":[1100,1325,1605,2245,2570,2950],"80901":[1100,1325,1605,2245,2585,2971],"80902":[1441,1715,2098,2953,3490,4010],"80903":[1010,1235,1460,2027,2306,2651],"80904":[965,1200,1425,1975,2285,2620],"80905":[955,1172,1410,1955,2235,2570],"80906":[1171,1433,1705,2395,2820,3240],"80907":[893,1160,1310,1860,2135,2455],"80908":[1439,1692,2088,2946,3463,3982],"80909":[929,1205,1450,1883,2200,2505],"80910":[991,1230,1520,2050,2386,2745],"80911":[1171,1415,1711,2415,2836,3260],"80913":[1345,1625,1955,2740,3145,3615],"80914":[1593,1879,2319,3265,3848,4425],"80915":[1010,1220,1470,2055,2386,2743],"80916":[1028,1253,1525,2080,2425,2790],"80917":[995,1250,1505,2035,2360,2715],"80918":[1109,1380,1613,2275,2690,3090],"80919":[1220,1470,1775,2485,2860,3285],"80920":[1390,1675,2030,2840,3286,3778],"80921":[1470,1775,2145,3000,3466,3958],"80922":[1405,1670,2045,2885,3390,3900],"80923":[1450,1715,2125,2975,3560,4090],"80924":[1640,1985,2395,3360,3880,4461],"80925":[1540,1865,2255,3155,3730,4280],"80926":[1075,1325,1570,2200,2530,2910],"80927":[1650,1990,2405,3370,3880,4461],"80928":[1136,1388,1640,2279,2585,2972],"80929":[1435,1730,2090,2930,3412,3923],"80930":[1410,1675,2050,2910,3490,4010],"80938":[1540,1855,2245,3145,3682,4233],"80951":[1515,1830,2210,3090,3628,4171],"81008":[1100,1136,1487,1910,2216,2548]};
+/* Utility allowances, single-family/detached, effective 1/1/2026, for 1-5 BR. Tenant pays gas heat, gas cooking, gas water heater, electric, water, sewer, trash; owner supplies range + fridge. */
+const S8_UA = {
+  metro: {name: "Service Area 2 (Metro)", heat:[37,43,48,54,60], cook:[3,4,5,7,8], elec:[40,55,71,86,102], wh:[9,12,17,20,25], water:[30,34,39,43,47], sewer:[37,46,55,63,72], trash:[37,37,37,37,37], fees: 24},
+  rural: {name: "Service Area 2 (Rural)", heat:[37,43,48,54,60], cook:[3,4,5,7,8], elec:[40,55,71,86,102], wh:[9,12,17,20,25], water:[33,38,43,49,55], sewer:[47,54,60,66,73], trash:[37,37,37,37,37], fees: 24},
+  a1: {name: "Service Area 1", heat:[36,42,48,54,60], cook:[3,4,5,7,8], elec:[40,55,71,86,102], wh:[9,12,17,20,25], water:[67,72,76,81,86], sewer:[70,70,70,70,70], trash:[19,19,19,19,19], fees: 24},
+  a3: {name: "Service Area 3 (mountain)", heat:[54,65,74,85,95], cook:[3,4,5,7,8], elec:[27,37,47,58,68], wh:[10,14,18,23,27], water:[30,37,43,50,56], sewer:[28,28,28,28,28], trash:[19,19,19,19,19], fees: 36}};
+const S8_AREA = c => ({Adams:1,Arapahoe:1,Boulder:1,Broomfield:1,Denver:1,Douglas:1,Jefferson:1})[c] ? "metro" : ({"El Paso":1,Larimer:1,Weld:1,Elbert:1,Fremont:1,Morgan:1,Dolores:1,Hinsdale:1,"La Plata":1,Montezuma:1,"San Juan":1,"San Miguel":1})[c] ? "rural" : ({Alamosa:1,Archuleta:1,Chaffee:1,"Clear Creek":1,Conejos:1,Costilla:1,Eagle:1,Gilpin:1,Grand:1,Gunnison:1,Jackson:1,Lake:1,Mineral:1,Moffat:1,Pitkin:1,"Rio Grande":1,Routt:1,Saguache:1,Summit:1})[c] ? "a3" : "a1";
+function section8(l){
+  const c = countyOf(l), h = homeInfo(l); if (!c || !S8_PS[c]) return null;
+  const bedsKnown = !!h.beds, br = Math.max(1, Math.min(5, Math.round(h.beds || 3)));
+  const zip = String(l.zip || "").slice(0, 5), byZip = S8_ZIP[zip];
+  const ps = (byZip || S8_PS[c])[br];
+  const ak = /estes/i.test(l.city || "") ? "a3" : S8_AREA(c), u = S8_UA[ak], i = br - 1;
+  const items = [["Gas heat", u.heat[i]], ["Gas cooking", u.cook[i]], ["Electric (lights, appliances)", u.elec[i]], ["Gas water heater", u.wh[i]], ["Water", u.water[i]], ["Sewer", u.sewer[i]], ["Trash", u.trash[i]], ["Gas + electric service fees", u.fees]];
+  const ua = items.reduce((a, x) => a + x[1], 0), rent = ps - ua;
+  const e = mortgageEstimate(l), piti = e.ok ? e.piti : null;
+  const cash = piti != null ? rent - piti : null, reserve = Math.round(rent * 0.1);
+  return {county: c, br, bedsKnown, zip, byZip: !!byZip, ps, ua, rent, items, area: u.name, piti, cash, reserve, cashAfter: cash != null ? cash - reserve : null};
+}
+function s8Card(l){
+  const s = section8(l); if (!s) return "";
+  return `<div class="facts" style="color:var(--ink2)"><span>Sec 8 rent ≈ <b>${money(s.rent)}</b></span>${s.cash != null ? `<span class="sep">|</span><span>Cash flow <b style="color:${s.cash >= 0 ? "var(--green)" : "var(--red)"}">${s.cash >= 0 ? "+" : "−"}${money(Math.abs(s.cash))}</b>/mo</span>` : ""}</div>`;
+}
+function s8HTML(l){
+  const s = section8(l); if (!s) return "";
+  const c = v => `<b style="color:${v >= 0 ? "var(--green)" : "var(--red)"}">${v >= 0 ? "+" : "−"}${money(Math.abs(v))}/mo</b>`;
+  return `<div class="sect">Section 8 rental cash flow</div>
+  <div class="nums">
+    <div class="num"><div class="row"><span class="lbl">Voucher payment standard, ${s.br} BR${s.bedsKnown ? "" : " (beds unknown, using 3)"} · ${s.byZip ? "ZIP " + esc(s.zip) : esc(s.county) + " County"}</span><b>${money(s.ps)}</b></div></div>
+    <div class="num"><div class="row"><span class="lbl">− Utility allowance (${esc(s.area)})</span><b>−${money(s.ua)}</b></div>
+      <details><summary style="font-size:12px;color:var(--muted)">What's in it</summary><div class="why">${s.items.map(x => `${esc(x[0])}: ${money(x[1])}`).join(" · ")}. Assumes the tenant pays every utility with gas heat, and you supply the stove and fridge. If you pay water/sewer/trash instead, rent goes up by that amount but you pay those bills, so cash flow stays about the same.</div></details></div>
+    <div class="num"><div class="row"><span class="lbl"><b>Rent you'd collect</b> (most Section 8 will pay)</span><b>${money(s.rent)}</b></div></div>
+    ${s.piti != null ? `<div class="num"><div class="row"><span class="lbl">− Their mortgage payment (P&amp;I + taxes + insurance)</span><b>−${money(s.piti)}</b></div></div>
+    <div class="num"><div class="row"><span class="lbl"><b>Cash flow</b></span>${c(s.cash)}</div></div>
+    <div class="num"><div class="row"><span class="lbl">After 10% for repairs &amp; vacancy (${money(s.reserve)})</span>${c(s.cashAfter)}</div></div>` : `<div class="num"><div class="why">Add the loan amount to see cash flow.</div></div>`}
+    <div class="num"><div class="why">From Colorado Division of Housing 2026 voucher payment standards and 1/1/2026 single-family utility allowances. Local housing authorities (Denver, Colorado Springs, Fort Collins, Loveland, Greeley, Pueblo, Boulder) set their own numbers, often close to these. The housing authority also checks that the rent is reasonable next to similar rentals, and a tenant can't pay more than 40% of income at move-in, so treat this as the top end.</div></div>
+  </div>`;
+}
 function cardHTML(l, mode){
   const eq = equity(l);
   const st = (l.status || "New");
@@ -597,6 +641,7 @@ function cardHTML(l, mode){
       ${homeFacts(l)}
       ${facts ? `<div class="facts">${facts}</div>` : ""}
       ${stressChips(l)}
+      ${s8Card(l)}
       ${(() => { const e = mortgageEstimate(l); return !e.ok ? `<div class="facts" style="color:var(--muted)"><span>Add loan amount to estimate payment &amp; amount behind</span></div>` : `<div class="facts" style="color:var(--ink2)"><span>≈ <b>${money(e.piti)}</b>/mo</span>${e.arrears != null ? `<span class="sep">|</span><span>≈ <b>${short(e.arrears)}</b> behind</span>` : ""}<span class="sep">|</span><span>≈ ${short(e.balance)} owed</span></div>`; })()}
       <details class="how" onclick="event.stopPropagation()"><summary style="font-size:12px;color:var(--accent,#0b6bcb);cursor:pointer;margin-top:4px">ⓘ How do we know?</summary>${howHTML(l)}</details>
       <div class="addr">${esc(fullAddr(l))}</div>
@@ -1245,6 +1290,7 @@ function openLead(id){
         <div><label>Foreclosure notice (NED) date</label><input class="field" type="date" id="eNed" value="${esc(l.nedDate || "")}"></div></div>
 
       ${acceptHTML(l)}
+      ${s8HTML(l)}
       <div class="sect">Best play &amp; owner situation</div>
       ${stressChips(l)}
       <div class="nums"><div class="num"><div class="why">${esc(strategy(l).why)}</div></div>${stressSignals(l).map(x => `<div class="num"><div class="why">${x.icon} <b>${esc(x.label)}:</b> ${x.why}</div></div>`).join("")}</div>
