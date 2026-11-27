@@ -115,6 +115,14 @@ main{max-width:1400px;margin:0 auto;padding:0 0 calc(var(--nav) + 20px)}
 .kv>div>span{display:block;font-size:12px;color:var(--muted)}
 .kv b{font-size:14px;word-break:break-word}
 .sect{font-size:16px;font-weight:700;margin:18px 0 8px}
+.quick{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0 4px}
+.quick div{background:#f6f6f8;border-radius:10px;padding:8px;text-align:center}.quick b{display:block;font-size:15px}.quick span{font-size:11px;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:12px 0}
+.tile{border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 12px;text-align:left;cursor:pointer;min-height:92px;display:flex;flex-direction:column;gap:4px;font:inherit;color:inherit}
+.tile:active{background:#f0f4ff}.tile .ti{font-size:24px}.tile .tt{font-weight:800;font-size:15px}.tile .ts{font-size:12px;color:var(--muted);line-height:1.3}
+.tile.warn{border-color:#f0c36d;background:#fffaf0}.tile.bad{border-color:#f3a3a3;background:#fff5f5}
+.paneback{margin:10px 0 0}.panetitle{font-size:20px;font-weight:800;margin:10px 0 4px}
+
 label{display:block;font-size:13px;color:var(--ink2);font-weight:600;margin:10px 0 4px}
 .field{width:100%;border:1px solid #c4c4cc;border-radius:8px;padding:10px;background:#fff}
 .field:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px #006aff22}
@@ -1331,6 +1339,47 @@ ${photo}
   else { const b = new Blob([html], {type: "text/html"}); location.href = URL.createObjectURL(b); }
 }
 
+
+function quickStrip(l){
+  const o = offerRange(l), a = acceptChance(l), s8 = section8(l), eq = equity(l);
+  const box = (v, t) => `<div><b>${v}</b><span>${t}</span></div>`;
+  return box(valueOf(l) ? short(valueOf(l)) : "—", "value") + box(l.amountOwed != null ? short(l.amountOwed) : "—", "owed")
+    + box(eq != null ? (eq < 0 ? "−" : "") + short(Math.abs(eq)) : "—", "equity")
+    + box(a.pct + "%", "chance of yes") + box(s8 && s8.cash != null ? (s8.cash >= 0 ? "+" : "−") + short(Math.abs(s8.cash)) : "—", "Sec 8 /mo")
+    + box(o.ok ? short(o.low) + "–" + short(o.high) : "—", "offer to seller");
+}
+function leadTiles(l){
+  const e = mortgageEstimate(l), f = redFlags(l), reds = f.filter(x => x[0] === "red").length, ambers = f.filter(x => x[0] === "amber").length;
+  const ds = daysUntil(l.keyDate), di = daysUntil(l.cureIntentDeadline), ps = Array.isArray(l.photos) ? l.photos.length : 0;
+  const o = offerRange(l), st = strategy(l), ck = Object.values(l.checklist || {}).filter(Boolean).length;
+  const t = (k, icon, title, sub, cls) => `<button class="tile ${cls || ""}" data-open="${k}"><span class="ti">${icon}</span><span class="tt">${title}</span><span class="ts">${sub}</span></button>`;
+  const soon = (ds != null && ds >= 0 && ds < 21) || (di != null && di >= 0 && di <= 14);
+  return [
+    t("owner", "👤", "Owner", esc(l.owner || "Not on file") + (absentee(l) === true ? " · lives elsewhere" : "")),
+    t("loan", "🏦", "Loan & bank", [l.holder || l.lender ? esc(String(l.holder || l.lender).slice(0, 28)) : "", l.interestRate ? l.interestRate + "%" : "", e.ok ? money(e.piti) + "/mo" : ""].filter(Boolean).join(" · ") || "Payment, balance, months behind"),
+    t("fc", "⚖️", "Foreclosure", ds != null ? (ds < 0 ? "Sale date passed" : `Sale in ${ds} days`) + (di != null && di >= 0 ? ` · cure intent in ${di}d` : "") : "Deadlines & catch-up amount", soon ? "bad" : ""),
+    t("liens", "🚩", "Liens & red flags", reds || ambers ? `${reds ? reds + " red" : ""}${reds && ambers ? ", " : ""}${ambers ? ambers + " caution" : ""}` : "No flags found", reds ? "bad" : ambers ? "warn" : ""),
+    t("value", "🏠", "Value & equity", valueOf(l) ? short(valueOf(l)) + (l.marketValue && valueOf(l) === l.marketValue ? " from sales" : " county value") : "Needs a value"),
+    t("offer", "💰", "Offer & cash flow", o.ok ? `${short(o.low)}–${short(o.high)} to seller` : "Offer range, Section 8, calculator", o.ok && o.color === "var(--green)" ? "" : ""),
+    t("play", "🎯", "Best play", esc(st.label) + (stressSignals(l).length ? ` · ${stressSignals(l).length} owner signal${stressSignals(l).length > 1 ? "s" : ""}` : "")),
+    t("steps", "✅", "Deal steps", ck ? `${ck} of ${STEPS.length} done` : "Colorado-safe steps, payments"),
+    t("photos", "📷", "Photos", ps ? `${ps} photo${ps > 1 ? "s" : ""}` : "Add outside & inside photos"),
+    t("notes", "📝", "Status & notes", esc(l.status || "New") + (l.notes ? " · has notes" : "")),
+    t("reach", "✉️", "Reach out", "Letter, door script, offer sheet, visit packet"),
+  ].join("");
+}
+function wirePanes(){
+  const sheet = $("#sheet");
+  const show = k => {
+    sheet.querySelectorAll(".pane").forEach(p => p.hidden = p.dataset.pane !== k);
+    const tl = $("#tiles"), q = sheet.querySelector(".quick"); if (tl) tl.hidden = !!k; if (q) q.hidden = !!k;
+    const tgt = k ? sheet.querySelector(`.pane[data-pane="${k}"]`) : tl;
+    if (tgt) setTimeout(() => tgt.scrollIntoView({block: "start", behavior: "smooth"}), 30);
+  };
+  window.showPane = show;
+  sheet.querySelectorAll("[data-open]").forEach(b => b.onclick = () => show(b.dataset.open));
+  sheet.querySelectorAll("[data-back]").forEach(b => b.onclick = () => show(null));
+}
 function openLead(id){
   const l = leads.find(x => x.id === id); if (!l) return;
   const st = l.status || "New", county = countyOf(l);
@@ -1346,8 +1395,6 @@ function openLead(id){
       <div class="daddr" style="font-size:19px;font-weight:800">${esc(fullAddr(l))}</div>
       ${homeFacts(l)}
       ${aerialHTML(l)}
-      <div class="sect">Your photos</div>
-      <div id="myPhotos"></div>
       <div class="chips"><span class="chip" style="color:${typeColor(l.leadType)}">● ${esc(l.leadType || "Lead")}</span>
         ${l.propertyType ? `<span class="chip">${esc(l.propertyType)}</span>` : ""}
         <span class="chip">${esc(county)} County</span>
@@ -1357,6 +1404,9 @@ function openLead(id){
         <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.zillow.com/homes/${encodeURIComponent(fullAddr(l))}_rb/">Zillow ↗</a>
       </div>
 
+      <div class="quick">${quickStrip(l)}</div>
+      <div class="tiles" id="tiles">${leadTiles(l)}</div>
+      <div class="pane" data-pane="owner" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">👤 Owner</div>
       <div class="sect">Owner</div>
       <div class="owner">
         <div class="nm">${esc(l.owner || "Owner not on file")}</div>
@@ -1376,6 +1426,41 @@ function openLead(id){
         <div class="line" style="font-size:12px;color:var(--muted)">From public records. Check the owner and mailing address on the Assessor site before sending a letter.</div>
       </div>
 
+      </div>
+      <div class="pane" data-pane="loan" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">🏦 Loan &amp; bank</div>
+      <div class="sect">Estimated mortgage</div>
+      ${(() => { const e = mortgageEstimate(l);
+        if (!e.ok) return `<div class="nums"><div class="num"><div class="why">To estimate the payment and how far behind they are, add the <b>original loan amount</b> below. It's printed in the foreclosure filing ("in the original amount of $…").${l.sourceUrl ? ` <a href="${esc(l.sourceUrl)}" target="_blank" rel="noopener noreferrer">Open the filing ↗</a>` : ""}</div></div></div>`;
+        const row = (lbl, val, conf, why) => `<div class="num"><div class="row"><span class="lbl">${lbl}</span>${confPill(conf)}</div><div class="val">${val}</div><div class="why">${why}</div></div>`;
+        return `<div class="nums">
+          ${row("Monthly payment (principal, interest, taxes, insurance)", money(e.piti) + "/mo", e.rateKnown ? ["med","Medium"] : ["low","Estimate"], `P&amp;I ${money(e.pi)} on the ${money(e.orig)} original loan over 30 years at ${e.rate}%${e.rateKnown ? (l.loanType ? ` (${esc(l.loanType)} loan, rate from the record)` : " (rate from the record)") : e.dateGuessed ? " (loan date unknown, so this uses the 2012–2024 average rate; add the loan date below to sharpen it)" : ` (the average 30-year rate when the loan was made, ${fmtDate(l.loanDate)})`}, plus about ${money(e.taxes)} taxes and ${money(e.ins)} insurance. FHA/VA loans and PMI can add more.`)}
+          ${e.behind != null ? row("How far behind", `≈ ${e.behind} months · ${money(e.arrears)}`, l.balanceAsOf ? ["med","Medium"] : ["low","Estimate"], l.balanceAsOf ? `The Public Trustee record shows the loan was last current ${fmtDate(l.balanceAsOf)}, so about ${e.behind} payments are missed. Includes about ${money(e.lateFees)} late fees and ${money(e.fcCosts)} foreclosure costs.` : `Lenders can't start a foreclosure until a loan is more than 120 days late, so we assume about 4 months behind at the foreclosure notice (${e.nedGuessed ? "estimated around " : ""}${fmtDate(e.ned)}) plus every month since. Includes about ${money(e.lateFees)} late fees and ${money(e.fcCosts)} foreclosure costs.`) : ""}
+          ${row("Loan balance (not counting what's past due)", (e.balanceKnown ? "" : "≈ ") + money(e.balance), e.balanceKnown ? ["high","From record"] : ["low","Estimate"], e.balanceKnown ? "Outstanding principal from the Public Trustee record." : `What's left after about ${e.paidMonths} on-time payments.`)}
+          ${e.arrears != null ? row("Estimated total payoff", "≈ " + money(e.payoff), ["low","Estimate"], "Balance plus what's past due. The real number comes from the lender's payoff or reinstatement quote.") : ""}
+        </div>
+        <div class="btns"><button class="btn" id="estToCalc">Put these in the deal calculator</button></div>`; })()}
+      <div class="grid2"><div><label>Original loan amount</label><input class="field" id="eOrig" inputmode="decimal" value="${l.originalLoan ?? (l.amountOwedSource === "original-loan" ? l.amountOwed ?? "" : "")}" placeholder="$ from the filing"></div>
+        <div><label>Foreclosure notice (NED) date</label><input class="field" type="date" id="eNed" value="${esc(l.nedDate || "")}"></div></div>
+
+      <div class="grid2"><div><label>Loan date (deed of trust)</label><input class="field" type="date" id="eLoanDate" value="${esc(l.loanDate || "")}"></div>
+        <div><label>Interest rate %</label><input class="field" id="eRate" inputmode="decimal" value="${l.interestRate ?? ""}" placeholder="e.g. 3.25"></div></div>
+
+      <details class="tool" open><summary>ⓘ How do we know they're behind, and by how much?</summary><div style="padding:4px 2px">${howHTML(l)}</div></details>
+
+      </div>
+      <div class="pane" data-pane="fc" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">⚖️ Foreclosure &amp; deadlines</div>
+      <div class="sect">Deadlines that matter</div>
+      ${deadlinesHTML(l)}
+
+      </div>
+      <div class="pane" data-pane="liens" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">🚩 Liens &amp; red flags</div>
+      <div class="sect">Red flags &amp; liens</div>
+      <div class="nums">${flagsHTML(l)}</div>
+      ${debtsHTML(l)}
+      <div class="btns"><button class="btn primary" id="packet">🖨 Visit packet</button></div>
+
+      </div>
+      <div class="pane" data-pane="value" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">🏠 Value &amp; equity</div>
       <div class="sect">The numbers & how accurate they are</div>
       <div class="nums">
         <div class="num"><div class="row"><span class="lbl">${owedLbl}</span>${confPill(oc)}</div>
@@ -1391,33 +1476,15 @@ function openLead(id){
           <div class="why">${l.amountOwedSource === "original-loan" ? "Court response deadline. The actual sale date is usually weeks later. Confirm it with the Public Trustee." : "Sale date or deadline from the record."}</div></div>
       </div>
 
-      <details class="tool" open><summary>ⓘ How do we know they're behind, and by how much?</summary><div style="padding:4px 2px">${howHTML(l)}</div></details>
-
-      <div class="sect">Deadlines that matter</div>
-      ${deadlinesHTML(l)}
-
-      <div class="sect">Red flags &amp; liens</div>
-      <div class="nums">${flagsHTML(l)}</div>
-      ${debtsHTML(l)}
-      <div class="btns"><button class="btn primary" id="packet">🖨 Visit packet</button></div>
-
-      <div class="sect">Estimated mortgage</div>
-      ${(() => { const e = mortgageEstimate(l);
-        if (!e.ok) return `<div class="nums"><div class="num"><div class="why">To estimate the payment and how far behind they are, add the <b>original loan amount</b> below. It's printed in the foreclosure filing ("in the original amount of $…").${l.sourceUrl ? ` <a href="${esc(l.sourceUrl)}" target="_blank" rel="noopener noreferrer">Open the filing ↗</a>` : ""}</div></div></div>`;
-        const row = (lbl, val, conf, why) => `<div class="num"><div class="row"><span class="lbl">${lbl}</span>${confPill(conf)}</div><div class="val">${val}</div><div class="why">${why}</div></div>`;
-        return `<div class="nums">
-          ${row("Monthly payment (principal, interest, taxes, insurance)", money(e.piti) + "/mo", e.rateKnown ? ["med","Medium"] : ["low","Estimate"], `P&amp;I ${money(e.pi)} on the ${money(e.orig)} original loan over 30 years at ${e.rate}%${e.rateKnown ? (l.loanType ? ` (${esc(l.loanType)} loan, rate from the record)` : " (rate from the record)") : e.dateGuessed ? " (loan date unknown, so this uses the 2012–2024 average rate; add the loan date below to sharpen it)" : ` (the average 30-year rate when the loan was made, ${fmtDate(l.loanDate)})`}, plus about ${money(e.taxes)} taxes and ${money(e.ins)} insurance. FHA/VA loans and PMI can add more.`)}
-          ${e.behind != null ? row("How far behind", `≈ ${e.behind} months · ${money(e.arrears)}`, l.balanceAsOf ? ["med","Medium"] : ["low","Estimate"], l.balanceAsOf ? `The Public Trustee record shows the loan was last current ${fmtDate(l.balanceAsOf)}, so about ${e.behind} payments are missed. Includes about ${money(e.lateFees)} late fees and ${money(e.fcCosts)} foreclosure costs.` : `Lenders can't start a foreclosure until a loan is more than 120 days late, so we assume about 4 months behind at the foreclosure notice (${e.nedGuessed ? "estimated around " : ""}${fmtDate(e.ned)}) plus every month since. Includes about ${money(e.lateFees)} late fees and ${money(e.fcCosts)} foreclosure costs.`) : ""}
-          ${row("Loan balance (not counting what's past due)", (e.balanceKnown ? "" : "≈ ") + money(e.balance), e.balanceKnown ? ["high","From record"] : ["low","Estimate"], e.balanceKnown ? "Outstanding principal from the Public Trustee record." : `What's left after about ${e.paidMonths} on-time payments.`)}
-          ${e.arrears != null ? row("Estimated total payoff", "≈ " + money(e.payoff), ["low","Estimate"], "Balance plus what's past due. The real number comes from the lender's payoff or reinstatement quote.") : ""}
-        </div>
-        <div class="btns"><button class="btn" id="estToCalc">Put these in the deal calculator</button></div>`; })()}
-      <div class="grid2"><div><label>Original loan amount</label><input class="field" id="eOrig" inputmode="decimal" value="${l.originalLoan ?? (l.amountOwedSource === "original-loan" ? l.amountOwed ?? "" : "")}" placeholder="$ from the filing"></div>
-        <div><label>Foreclosure notice (NED) date</label><input class="field" type="date" id="eNed" value="${esc(l.nedDate || "")}"></div></div>
-
+      <details class="tool" open><summary>🏘 Comps &amp; value check <span id="compCount"></span></summary><div id="comps"></div></details>
+      </div>
+      <div class="pane" data-pane="offer" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">💰 Offer &amp; cash flow</div>
       ${acceptHTML(l)}
       ${s8HTML(l)}
       ${offerHTML(l)}
+      <details class="tool" id="calcBox" open><summary>🧮 Sub-to deal calculator</summary><div id="calc"></div></details>
+      </div>
+      <div class="pane" data-pane="play" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">🎯 Best play &amp; owner situation</div>
       <div class="sect">Best play &amp; owner situation</div>
       ${stressChips(l)}
       <div class="nums"><div class="num"><div class="why">${esc(strategy(l).why)}</div></div>${stressSignals(l).map(x => `<div class="num"><div class="why">${x.icon} <b>${esc(x.label)}:</b> ${x.why}</div></div>`).join("")}</div>
@@ -1425,14 +1492,17 @@ function openLead(id){
       <div class="nums">${fitScore(l).parts.map(p => `<div class="num"><div class="row"><span class="lbl">${esc(p[2])}</span><b>${p[0]}/${p[1]}</b></div></div>`).join("")}</div>
       <div class="sect">Sub-To fit: <span style="color:${subColor(subTo(l).score)}">${subTo(l).score} · ${subTo(l).label}</span></div>
       <div class="nums">${subTo(l).parts.map(p => `<div class="num"><div class="row"><span class="lbl">${esc(p[2])}</span><b>${p[0]}/${p[1]}</b></div></div>`).join("")}</div>
-      <div class="grid2"><div><label>Loan date (deed of trust)</label><input class="field" type="date" id="eLoanDate" value="${esc(l.loanDate || "")}"></div>
-        <div><label>Interest rate %</label><input class="field" id="eRate" inputmode="decimal" value="${l.interestRate ?? ""}" placeholder="e.g. 3.25"></div></div>
-
-      <details class="tool"><summary>🏘 Comps &amp; value check <span id="compCount"></span></summary><div id="comps"></div></details>
-      <details class="tool" id="calcBox"><summary>🧮 Sub-to deal calculator</summary><div id="calc"></div></details>
-      <details class="tool"><summary>✅ Colorado deal steps <span id="ckCount"></span></summary><div id="ck"></div></details>
+      </div>
+      <div class="pane" data-pane="steps" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">✅ Deal steps &amp; payments</div>
+      <details class="tool" open><summary>✅ Colorado deal steps <span id="ckCount"></span></summary><div id="ck"></div></details>
       <details class="tool"><summary>💵 Loan payment tracker <span id="payCount"></span></summary><div id="pay"></div></details>
 
+      </div>
+      <div class="pane" data-pane="photos" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">📷 Photos</div>
+      <div class="sect">Your photos</div>
+      <div id="myPhotos"></div>
+      </div>
+      <div class="pane" data-pane="notes" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">📝 Status, notes &amp; edits</div>
       <div class="sect">Pipeline</div>
       <div class="seg" id="seg">${STATUSES.map(s => `<button data-s="${s}" class="${s === st ? "on" : ""}">${s === "Offer Made" ? "Offer" : s}</button>`).join("")}</div>
 
@@ -1450,9 +1520,12 @@ function openLead(id){
       <label>Notes</label><textarea class="field" id="eNotes">${esc(l.notes || "")}</textarea>
       <div class="btns"><button class="btn primary" id="save">Save changes</button></div>
 
+      </div>
+      <div class="pane" data-pane="reach" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">✉️ Letters, scripts &amp; packet</div>
       <div class="sect">Reach out</div>
       <div class="btns" style="margin-top:0"><button class="btn" id="letter">✉️ Owner letter</button><button class="btn" id="script">🚪 Door script</button><button class="btn" id="offer">📄 Offer sheet</button><button class="btn" id="replied">${l.hot ? "🔥 Replied" : "🔥 Mark replied"}</button></div>
       <div id="out"></div>
+      </div>
       <div class="btns"><button class="btn" id="del" style="color:var(--red)">Delete lead</button></div>
     </div>`);
   $("#x").onclick = closeModal;
@@ -1470,6 +1543,7 @@ function openLead(id){
     toast("Saved"); closeModal();
   };
   currentLead = l;
+  wirePanes();
   renderCalc(l); renderChecklist(l); renderPayments(l); renderComps(l); renderPhotos(l);
   loadAutoComps(l);
   { const af = document.getElementById("authForm"); if (af) af.onclick = () => authFormPrint(l); }
@@ -1478,7 +1552,7 @@ function openLead(id){
   const etc = $("#estToCalc"); if (etc) etc.onclick = async () => { const e = mortgageEstimate(l);
     const deal = {...(l.deal || {}), balance: Math.round(e.balance), rate: e.rate, yearsLeft: Math.max(1, Math.round((360 - e.paidMonths) / 12)),
       taxes: Math.round(e.taxes), insurance: e.ins, monthsBehind: e.behind ?? "", fees: Math.round(e.lateFees + e.fcCosts), value: l.estValue ?? ""};
-    await patch(l, {deal}, "Estimates added to the calculator"); renderCalc(l); $("#calcBox").open = true; $("#calcBox").scrollIntoView({behavior: "smooth"}); };
+    await patch(l, {deal}, "Estimates added to the calculator"); renderCalc(l); $("#calcBox").open = true; showPane("offer"); };
   $("#replied").onclick = async () => { await patch(l, {hot: !l.hot, ...(!l.hot && ["New","Reviewed"].includes(l.status || "New") ? {status: "Contacted"} : {})}, l.hot ? "Marked as replied 🔥" : "Reply mark removed"); $("#replied").textContent = l.hot ? "🔥 Replied" : "🔥 Mark replied"; };
   $("#letter").onclick = () => showOut(letterText(l), true);
   $("#script").onclick = () => showOut(scriptText(l), false);
