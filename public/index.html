@@ -709,10 +709,11 @@ function offerHTML(l){
 
 /* ---------- other debts on the house ---------- */
 function debtsHTML(l){
-  const ps = Array.isArray(l.lienParties) ? l.lienParties : [];
+  const ps = (Array.isArray(l.lienParties) ? l.lienParties : []).filter(p => !/^(OWNER|OCCUPANTS?|TENANTS?|LESSEES?|CURRENT OCCUPANT|RESIDENT)\b/i.test(p));
   const holderW = String(l.holder || l.lender || "").toUpperCase().split(/[^A-Z]+/).filter(w => w.length > 3);
   const kind = p => /INTERNAL REVENUE|UNITED STATES|DEPARTMENT OF REVENUE|TREASURY|HOUSING AND URBAN|SECRETARY OF|SMALL BUSINESS/i.test(p) ? ["🏛", "Government (tax lien or HUD partial claim?)", "red"]
     : /ASSOC|HOA|OWNERS|CONDOMINIUM|COMMUNITY|METRO(POLITAN)? DIST/i.test(p) ? ["🏘", "HOA or metro district", "amber"]
+    : /^(CITY|TOWN|COUNTY) OF|WATER|SANITATION|SANITARY|DISTRICT|UTILIT/i.test(p) ? ["🏛", "City, county or district (utility bill, code fine or assessment lien?)", "amber"]
     : /MORTGAGE ELECTRONIC|MERS/i.test(p) ? ["📄", "MERS (loan registry, often a 2nd loan's placeholder)", "amber"]
     : holderW.some(w => p.toUpperCase().includes(w)) ? ["🏦", "The foreclosing lender", "info"]
     : LENDERISH.test(p) ? ["🏦", "Another lender (2nd mortgage / HELOC?)", "red"]
