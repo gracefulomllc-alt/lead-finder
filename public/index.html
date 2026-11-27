@@ -266,7 +266,8 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const money = n => (n == null || n === "" || isNaN(n)) ? "—" : "$" + Math.round(n).toLocaleString();
 const short = n => n == null ? "?" : n >= 1e6 ? "$" + (n/1e6).toFixed(1) + "M" : "$" + Math.round(n/1000) + "K";
 const fmtDate = d => { if (!d) return "—"; const t = new Date(String(d).length === 10 ? d + "T12:00:00" : d); return isNaN(t) ? esc(d) : t.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}); };
-const equity = l => (l.estValue != null && l.amountOwed != null) ? l.estValue - l.amountOwed : null;
+const valueOf = l => (["comps","manual"].includes(l.estValueSource) ? l.estValue : null) ?? l.marketValue ?? l.estValue ?? null;
+const equity = l => (valueOf(l) != null && l.amountOwed != null) ? valueOf(l) - l.amountOwed : null;
 const typeColor = t => t === "Inbound" ? "var(--green)" : t === "Tax-delinquent" ? "var(--orange)" : t === "Both" ? "var(--purple)" : "var(--red)";
 const typeCls = t => t === "Inbound" ? "inb" : t === "Tax-delinquent" ? "tax" : t === "Both" ? "both" : "pre";
 const fullAddr = l => `${l.address.replace(/\s*\(.*?\)\s*/g," ")}, ${l.city || ""}, CO ${l.zip || ""}`.trim();
@@ -427,7 +428,7 @@ function mortgageEstimate(l){
   const rateKnown = l.interestRate != null && l.interestRate !== "";
   const rate = rateKnown ? +l.interestRate : dateGuessed ? 4.4 : marketRate(loanDate);
   const pi = pmt(orig, rate, 30);
-  const value = l.estValue || orig * 1.15;
+  const value = valueOf(l) || orig * 1.15;
   const taxes = value * 0.0055 / 12, ins = 200;
   const piti = pi + taxes + ins;
   const today = new Date().toISOString().slice(0, 10);
@@ -453,7 +454,7 @@ function ownedSince(l){
   const m = String(l.notes || "").match(/last sale \$[\d,]+ \(([^)]+)\)/); return m ? parseDate(m[1]) : "";
 }
 const yearsSince = d => d ? (Date.now() - new Date(d + "T12:00:00")) / (365.25 * 864e5) : null;
-const ltvOf = l => (l.amountOwed != null && l.estValue && l.leadType !== "Tax-delinquent") ? l.amountOwed / l.estValue : null;
+const ltvOf = l => (l.amountOwed != null && valueOf(l) && l.leadType !== "Tax-delinquent") ? l.amountOwed / valueOf(l) : null;
 function strategy(l){
   const ltv = ltvOf(l);
   if (l.leadType === "Tax-delinquent" && !l.nedDate) return {key: "cash", label: "Cash / seller finance", color: "#6b7280", why: "Behind on taxes, probably no mortgage to take over. Think seller financing or a fair cash offer."};
@@ -484,8 +485,8 @@ function fitScore0(l){
   const base = subTo(l).score, h = homeInfo(l), e = mortgageEstimate(l), ltv = ltvOf(l), stress = Math.min(12, stressSignals(l).length * 4);
   let sc, parts = [];
   if (goalMode === "flip") {
-    const spread = (l.estValue && l.amountOwed != null) ? l.estValue - l.amountOwed - (e.arrears || 0) : null;
-    const sp = spread == null ? 8 : spread / l.estValue >= 0.25 ? 35 : spread / l.estValue >= 0.15 ? 28 : spread / l.estValue >= 0.08 ? 16 : 4;
+    const V = valueOf(l), spread = (V && l.amountOwed != null) ? V - l.amountOwed - (e.arrears || 0) : null;
+    const sp = spread == null ? 8 : spread / V >= 0.25 ? 35 : spread / V >= 0.15 ? 28 : spread / V >= 0.08 ? 16 : 4;
     parts.push([sp, 35, spread == null ? "Spread unknown" : `Spread after catch-up ≈ ${short(spread)}`]);
     const dated = h.year ? (h.year < 1980 ? 12 : h.year < 2000 ? 8 : 3) : 5; parts.push([dated, 12, h.year ? `Built ${h.year}${h.year < 1990 ? ": room to add value" : ""}` : "Age unknown"]);
     const days = daysUntil(l.keyDate); const t = days == null ? 6 : days < 0 ? 2 : days <= 75 ? 15 : 10; parts.push([t, 15, days == null ? "No sale date" : `${days} days to sale`]);
@@ -551,7 +552,7 @@ function subTo(l){
     const p = yr >= 2020 && yr <= 2022 ? 32 : yr >= 2012 && yr <= 2019 ? 22 : yr === 2023 || yr === 2024 ? 6 : 12;
     parts.push([p, 35, `Loan from ${yr}` + (p >= 30 ? ": rates were about 3% then" : p >= 20 ? ": rates were about 3.5–4.5%" : p <= 6 ? ": rates were high (6–7%+)" : "")]);
   } else parts.push([10, 35, "Loan date/rate unknown: ask the seller or check the deed of trust"]);
-  const ltv = (l.amountOwed != null && l.estValue) ? l.amountOwed / l.estValue : null;
+  const ltv = ltvOf(l);
   if (ltv == null) parts.push([10, 25, "Owed vs value unknown"]);
   else { const p = ltv > 1 ? 4 : ltv > 0.9 ? 18 : ltv >= 0.6 ? 25 : 12;
     parts.push([p, 25, `Owes about ${Math.round(ltv * 100)}% of value` + (p === 25 ? ": thin equity, sub-to often fits" : ltv < 0.6 ? ": lots of equity, seller may prefer a sale" : ltv > 1 ? ": underwater" : "")]); }
@@ -622,11 +623,132 @@ function s8HTML(l){
     <div class="num"><div class="why">From Colorado Division of Housing 2026 voucher payment standards and 1/1/2026 single-family utility allowances. Local housing authorities (Denver, Colorado Springs, Fort Collins, Loveland, Greeley, Pueblo, Boulder) set their own numbers, often close to these. The housing authority also checks that the rent is reasonable next to similar rentals, and a tenant can't pay more than 40% of income at move-in, so treat this as the top end.</div></div>
   </div>`;
 }
+
+/* ---------- value from recent nearby sales (statewide parcel sales: Jefferson, Denver, Boulder, Arapahoe, Adams, Broomfield) ---------- */
+const SALES_COUNTIES = new Set(["Jefferson","Denver","Boulder","Arapahoe","Adams","Broomfield"]);
+const PARCELS_URL = "https://gis.colorado.gov/public/rest/services/Address_and_Parcel/Colorado_Public_Parcels/FeatureServer/0/query";
+function compsFromParcels(l, feats){
+  const num = String(l.address || "").match(/^\d+/)?.[0], word = (String(l.address || "").replace(/^\d+\s*/, "").toUpperCase().match(/[A-Z0-9]{3,}/g) || []).find(w => !/^(WEST|EAST|NORTH|SOUTH|AVE|AVENUE|STREET|DRIVE|ROAD|COURT|LANE|PLACE|CIRCLE|WAY|BLVD|PKWY)$/.test(w));
+  const subj = feats.find(a => a.situsAdd && num && String(a.situsAdd).startsWith(num + " ") && (!word || String(a.situsAdd).toUpperCase().includes(word)));
+  const sv = subj ? +subj.apprValTot : l.estValue; if (!sv) return null;
+  const lu = subj?.landUseDsc, cut = Date.now() - 548 * 864e5;
+  const resi = /single|sfr|residential|duplex|row|town|condo/i, notResi = /apart|vacant|commercial|exempt|industrial|agri|low rise|mid rise|senior|mobile home park/i;
+  const c = feats.filter(a => a !== subj && a.saleDate && Date.parse(a.saleDate) > cut && +a.salePrice >= 50000 && +a.apprValTot >= 50000
+    && (lu ? a.landUseDsc === lu : resi.test(a.landUseDsc || "") && !notResi.test(a.landUseDsc || "")))
+    .map(a => ({a: a.situsAdd, d: new Date(a.saleDate).toISOString().slice(0, 10), p: +a.salePrice, v: +a.apprValTot, r: +a.salePrice / +a.apprValTot}))
+    .filter(x => x.r >= 0.6 && x.r <= 1.6);
+  if (c.length < 3) return {n: c.length, tooFew: true};
+  const rs = c.map(x => x.r).sort((a, b) => a - b), q = f => rs[Math.min(rs.length - 1, Math.floor(f * rs.length))];
+  const med = rs.length % 2 ? rs[(rs.length - 1) / 2] : (rs[rs.length / 2 - 1] + rs[rs.length / 2]) / 2;
+  const r1k = n => Math.round(n / 1000) * 1000;
+  const near = c.sort((x, y) => Math.abs(x.v - sv) - Math.abs(y.v - sv)).slice(0, 6).map(x => ({a: x.a, d: x.d, p: x.p, v: x.v}));
+  return {marketValue: r1k(sv * med), low: r1k(sv * q(0.25)), high: r1k(sv * q(0.75)), n: c.length, ratio: Math.round(med * 100) / 100, subjValue: sv, landUse: lu || "", comps: near};
+}
+async function fetchAutoComps(l){
+  if (l.lat == null || l.lng == null || !SALES_COUNTIES.has(countyOf(l))) return null;
+  const d = 0.005, env = [l.lng - d * 1.3, l.lat - d, l.lng + d * 1.3, l.lat + d].join(",");
+  const p = new URLSearchParams({where: "1=1", geometry: env, geometryType: "esriGeometryEnvelope", inSR: 4326, spatialRel: "esriSpatialRelIntersects", outFields: "situsAdd,saleDate,salePrice,landUseDsc,apprValTot", returnGeometry: false, f: "json", resultRecordCount: 2000});
+  const j = await fetch(PARCELS_URL + "?" + p).then(r => r.json());
+  return compsFromParcels(l, (j.features || []).map(f => f.attributes));
+}
+function autoCompsHTML(l){
+  const c = countyOf(l);
+  if (!l.marketValue) return `<div class="num"><div class="why">${SALES_COUNTIES.has(c) ? (l.lat == null ? "Needs a map pin first." : "Checking recent sales nearby…") : `Free sale prices aren't published for ${esc(c || "this")} County yet. Use the comps tool below (Zillow/Redfin sold) and save the value.`}</div></div>`;
+  const ac = l.autoComps || [];
+  return `<div class="num"><div class="row"><span class="lbl">Value from ${l.compsN} recent sales nearby</span>${confPill(["med","From sales"])}</div>
+    <div class="val">${money(l.marketValue)}</div>
+    <div class="why">Homes like this within about ⅓ mile sold for a median ${Math.round((l.marketValueSource?.match(/[\d.]+/)?.[0] || 1) * 100)}% of their county value in the last 18 months, so we adjust this home's county value the same way. ${l.marketValueAsOf ? "Checked " + fmtDate(l.marketValueAsOf) + "." : ""} Condition isn't known; walk it before you trust it.</div>
+    ${ac.length ? `<details><summary style="font-size:12px;color:var(--muted)">Closest-size sales (${ac.length})</summary>${ac.map(x => `<div class="row" style="font-size:13px"><span class="lbl">${esc(x.a)} · ${fmtDate(x.d)}</span><b>${money(x.p)}</b></div>`).join("")}</details>` : ""}</div>`;
+}
+async function loadAutoComps(l){
+  const box = document.getElementById("autoCompsBox"); if (!box) return;
+  const fresh = l.marketValueAsOf && (Date.now() - Date.parse(l.marketValueAsOf)) < 30 * 864e5;
+  if (fresh || !SALES_COUNTIES.has(countyOf(l)) || l.lat == null) return;
+  try {
+    const r = await fetchAutoComps(l); if (!r || r.tooFew) { box.innerHTML = `<div class="num"><div class="why">Only ${r ? r.n : 0} matching sales nearby in 18 months: not enough to trust. Use the comps tool below.</div></div>`; return; }
+    await patch(l, {marketValue: r.marketValue, marketValueSource: `sales ratio ${r.ratio}`, marketValueAsOf: today10(), compsN: r.n, autoComps: r.comps});
+    if (document.getElementById("autoCompsBox")) document.getElementById("autoCompsBox").innerHTML = autoCompsHTML(l);
+  } catch (e) { box.innerHTML = `<div class="num"><div class="why">Couldn't reach the state sales data right now.</div></div>`; }
+}
+
+/* ---------- offer range: what to pay the seller ---------- */
+function offerRange(l){
+  const V = valueOf(l), e = mortgageEstimate(l);
+  const B = e.ok ? e.balance : l.amountOwed;
+  if (!V || B == null) return {ok: false};
+  const A = l.cureTotal || (e.ok && e.arrears) || 0, sellCost = Math.round(V * 0.08), closing = 2500;
+  const net = Math.round(V - sellCost - B - A);
+  const s8 = section8(l), cf = s8 && s8.cashAfter != null ? s8.cashAfter : null;
+  const cap = cf != null && cf > 0 ? Math.round(cf * 24 - A - closing) : null;
+  const r5 = n => Math.max(0, Math.round(n / 500) * 500);
+  let low, high, verdict, color;
+  if (net <= 5000) { low = 1500; high = 5000; }
+  else { low = r5(net * 0.5); high = r5(net * 0.8); }
+  if (cap == null) { verdict = cf != null ? "Doesn't cash flow as a Section 8 rental at this payment. Only makes sense as your own home or a flip." : "Add the loan amount to check cash flow."; color = "#9a9aa3"; }
+  else if (cap >= low) { high = Math.min(high, r5(cap)); verdict = net <= 5000 ? "Good sub-to: little equity, so moving money plus catching up the loan is a fair deal." : "Works: you can pay them a fair share of their equity and still cash flow."; color = "var(--green)"; }
+  else { verdict = net <= 5000 ? "Tight: even moving money pushes payback past 2 years." : "Paying a fair share of their equity doesn't cash flow. Offer a fair cash price, a novation, or refer it out."; color = "#b7791f"; }
+  if (high < low) high = low;
+  const flipMax = r5(V * 0.7 - B - A - (N(l.deal?.repairs) || 0));
+  return {ok: true, V, B, A, sellCost, closing, net, cf, cap, low, high, verdict, color, flipMax, totalIn: A + closing + low, totalInHigh: A + closing + high, payback: cf > 0 ? Math.round((A + closing + low) / cf) : null};
+}
+function offerHTML(l){
+  const o = offerRange(l);
+  if (!o.ok) return `<div class="sect">Offer range</div><div class="nums"><div class="num"><div class="why">Need a value and the loan balance to suggest an offer.</div></div></div>`;
+  const r = (a, b, why) => `<div class="num"><div class="row"><span class="lbl">${a}</span><b>${b}</b></div>${why ? `<div class="why">${why}</div>` : ""}</div>`;
+  return `<div class="sect">Offer range: <span style="color:${o.color}">${money(o.low)}–${money(o.high)} to the seller</span></div>
+  <div class="nums">
+    <div class="num" style="border-left:4px solid ${o.color}"><div class="why" style="color:var(--ink,inherit)"><b>${esc(o.verdict)}</b></div></div>
+    ${r("If they listed it, they'd walk away with", (o.net < 0 ? "−" : "") + money(Math.abs(o.net)), `Value ${money(o.V)} − about 8% to sell (${money(o.sellCost)}) − loan ${money(o.B)} − past due ${money(o.A)}. This is the number to beat, and your honest talking point.`)}
+    ${r("Your cash in (catch-up + closing + seller)", `${money(o.totalIn)}–${money(o.totalInHigh)}`, `Catch-up ${money(o.A)}, about ${money(o.closing)} title/closing, plus what you pay them.`)}
+    ${o.cf != null ? r("Section 8 cash flow after 10% reserve", (o.cf >= 0 ? "+" : "−") + money(Math.abs(o.cf)) + "/mo", o.payback ? `Pays back your cash in about ${o.payback} months at the low offer.` : "") : ""}
+    ${o.cap != null ? r("Most you can pay them (2-year payback)", money(Math.max(0, o.cap)), "24 months of cash flow minus catch-up and closing.") : ""}
+    ${r("Flip check: most you could pay (70% rule)", money(o.flipMax), `70% of value − loan − past due${N(l.deal?.repairs) ? " − your repair estimate" : ", before repairs (add repairs in the deal calculator)"}.`)}
+    <div class="num"><div class="why">How the range works: if they'd net under $5,000 by selling, it's $1,500–$5,000 moving money. If they have more equity, it's 50–80% of what they'd net, capped so you still cash flow. That 50% floor is our guideline, not a legal number: Colorado's Foreclosure Protection Act bans unconscionable deals and lies about value or equity, so show them the "walk away with" number and have an attorney review high-equity deals.</div></div>
+  </div>`;
+}
+
+/* ---------- other debts on the house ---------- */
+function debtsHTML(l){
+  const ps = Array.isArray(l.lienParties) ? l.lienParties : [];
+  const holderW = String(l.holder || l.lender || "").toUpperCase().split(/[^A-Z]+/).filter(w => w.length > 3);
+  const kind = p => /INTERNAL REVENUE|UNITED STATES|DEPARTMENT OF REVENUE|TREASURY|HOUSING AND URBAN|SECRETARY OF|SMALL BUSINESS/i.test(p) ? ["🏛", "Government (tax lien or HUD partial claim?)", "red"]
+    : /ASSOC|HOA|OWNERS|CONDOMINIUM|COMMUNITY|METRO(POLITAN)? DIST/i.test(p) ? ["🏘", "HOA or metro district", "amber"]
+    : /MORTGAGE ELECTRONIC|MERS/i.test(p) ? ["📄", "MERS (loan registry, often a 2nd loan's placeholder)", "amber"]
+    : holderW.some(w => p.toUpperCase().includes(w)) ? ["🏦", "The foreclosing lender", "info"]
+    : LENDERISH.test(p) ? ["🏦", "Another lender (2nd mortgage / HELOC?)", "red"]
+    : /PUBLIC TRUSTEE|COUNTY TREASURER|ATTORNEY|LAW|LLC|LLP|P\.?C\.?\b/i.test(p) ? ["⚖️", "Law firm, county or company", "info"]
+    : ["👤", "Person (co-owner, ex-spouse, heir or creditor?)", "amber"];
+  const rows = ps.map(p => { const k = kind(p); return `<div class="num" style="border-left:4px solid ${flagColor[k[2]]}"><div class="row"><span class="lbl">${k[0]} ${esc(p)}</span></div><div class="why">${k[1]}</div></div>`; }).join("");
+  return `<div class="sect">Other debts on the house</div><div class="nums">
+    ${l.lienCheckedAt ? (ps.length ? rows + `<div class="num"><div class="why">These parties were mailed the foreclosure notice (Public Trustee file, checked ${fmtDate(l.lienCheckedAt)}). Anyone with a recorded lien gets one, so each lender, HOA or government name above may be a debt that survives or must be paid.</div></div>`
+      : `<div class="num"><div class="why">✅ Only the owner and occupants were mailed the foreclosure notice (checked ${fmtDate(l.lienCheckedAt)}). Junior lienholders must be notified, so a clean list is a good sign. Still order a title search.</div></div>`)
+      : `<div class="num"><div class="why">Not checked yet. The scan reads the Public Trustee's mailing list, which names every recorded lienholder.</div></div>`}
+    <div class="num"><div class="why"><b>Before you pay anyone:</b> ① title search or title commitment (shows every recorded lien and judgment) · ② HOA status letter (dues owed, up to 6 months can come ahead of the mortgage) · ③ county treasurer: property taxes${l.taxOwed ? ` (<b>${money(l.taxOwed)} behind</b>)` : ""} · ④ the lender's written reinstatement quote, using the signed authorization form below.</div></div>
+  </div>
+  <div class="btns"><button class="btn" id="authForm">🖨 Lender authorization form</button>
+    <a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.google.com/search?q=${encodeURIComponent(countyOf(l) + " County Colorado clerk and recorder recorded documents search")}">County recorder search</a></div>`;
+}
+function authFormPrint(l){
+  const w = window.open("", "_blank"); if (!w) return toast("Allow pop-ups to print");
+  const line = '<span style="display:inline-block;border-bottom:1px solid #000;min-width:260px">&nbsp;</span>';
+  w.document.write(`<!doctype html><title>Authorization to Release Information</title><style>body{font:15px/1.6 Georgia,serif;max-width:720px;margin:40px auto;padding:0 20px}h1{font-size:20px;text-align:center}p{margin:14px 0}</style>
+  <h1>Borrower Authorization to Release Information</h1>
+  <p>Date: ${line}</p>
+  <p>To (loan servicer): <b>${esc(l.holder || l.lender || "")}</b> ${l.holder || l.lender ? "" : line}<br>Loan number: ${line}</p>
+  <p>Property: <b>${esc(fullAddr(l))}</b>${l.caseNumber ? `<br>Public Trustee foreclosure no.: <b>${esc(l.caseNumber)}</b>` : ""}</p>
+  <p>I/we, the borrower(s) on the loan above, authorize you to speak with and release information about this loan to:</p>
+  <p>Authorized party: ${line}<br>Company: ${line}<br>Phone / email: ${line}</p>
+  <p>This includes the current balance, payment history, amount past due, reinstatement and payoff quotes, escrow and insurance status, and loss-mitigation options. This authorization does not let the authorized party change the loan terms or sign for me. It stays in effect until I revoke it in writing.</p>
+  <p>Borrower name: ${line}<br>Signature: ${line} &nbsp; Date: ${line}<br>Last 4 of SSN (servicer may require): ${line}</p>
+  <p>Co-borrower name: ${line}<br>Signature: ${line} &nbsp; Date: ${line}</p>
+  <script>setTimeout(()=>print(),300)<\/script>`);
+  w.document.close();
+}
 function cardHTML(l, mode){
   const eq = equity(l);
   const st = (l.status || "New");
   const facts = [
-    l.estValue != null ? `<span><b>${short(l.estValue)}</b> value</span>` : "",
+    valueOf(l) != null ? `<span><b>${short(valueOf(l))}</b> value${l.marketValue && valueOf(l) === l.marketValue ? " (sales)" : ""}</span>` : "",
     eq != null ? `<span class="eq ${eq < 0 ? "neg" : ""}">${eq < 0 ? "−" : ""}${short(Math.abs(eq))} equity</span>` : "",
   ].filter(Boolean).join('<span class="sep">|</span>');
   return `<article class="card" data-id="${esc(l.id)}">
@@ -960,7 +1082,7 @@ function redFlags(l){
   if (hoa.length) add("amber", `HOA or district in the file: ${hoa.slice(0,2).join("; ")}. Expect HOA dues and possibly an HOA lien to pay.`);
   else if (l.propertyType === "Condo/Townhome") add("amber", "Condo/townhome: there's almost always an HOA. Ask for the HOA dues and any special assessments.");
   if (l.taxOwed) add("amber", `Behind on property taxes: ${money(l.taxOwed)} on the county list. Needs to be paid at or before closing.`);
-  if (l.estValue && l.amountOwed && l.leadType !== "Tax-delinquent" && l.amountOwed > l.estValue) add("red", `Owes more than the county value (${money(l.amountOwed)} vs ${money(l.estValue)}). Check comps; may need a short sale instead.`);
+  if (valueOf(l) && l.amountOwed && l.leadType !== "Tax-delinquent" && l.amountOwed > valueOf(l)) add("red", `Owes more than the value (${money(l.amountOwed)} vs ${money(valueOf(l))}). Check comps; may need a short sale instead.`);
   const ds = daysUntil(l.keyDate);
   if (ds != null && ds >= 0 && ds < 21) add("red", `Sale is in ${ds} days. Very little time to cure.`);
   const di = daysUntil(l.cureIntentDeadline);
@@ -1257,7 +1379,8 @@ function openLead(id){
         <div class="num"><div class="row"><span class="lbl">${owedLbl}</span>${confPill(oc)}</div>
           <div class="val">${money(l.amountOwed)}</div><div class="why">${oc[2]}</div></div>
         <div class="num"><div class="row"><span class="lbl">Estimated value</span>${confPill(vc)}</div>
-          <div class="val">${money(l.estValue)}</div><div class="why">${vc[2]}</div></div>
+          <div class="val">${money(l.estValue)}${l.estValueSource === "assessor" || !l.estValueSource ? " <small style=\"font-size:12px;color:var(--muted)\">county</small>" : ""}</div><div class="why">${vc[2]}</div></div>
+        <div id="autoCompsBox">${autoCompsHTML(l)}</div>
         <div class="num"><div class="row"><span class="lbl">Equity estimate</span>${confPill(ec)}</div>
           <div class="val ${eq != null ? "eq " + (eq < 0 ? "neg" : "") : ""}">${money(eq)}</div><div class="why">${ec[2]}</div></div>
         ${l.taxOwed != null ? `<div class="num"><div class="row"><span class="lbl">Back taxes</span>${confPill(["high","High"])}</div><div class="val">${money(l.taxOwed)}</div><div class="why">From the County Treasurer.</div></div>` : ""}
@@ -1273,6 +1396,7 @@ function openLead(id){
 
       <div class="sect">Red flags &amp; liens</div>
       <div class="nums">${flagsHTML(l)}</div>
+      ${debtsHTML(l)}
       <div class="btns"><button class="btn primary" id="packet">🖨 Visit packet</button></div>
 
       <div class="sect">Estimated mortgage</div>
@@ -1291,6 +1415,7 @@ function openLead(id){
 
       ${acceptHTML(l)}
       ${s8HTML(l)}
+      ${offerHTML(l)}
       <div class="sect">Best play &amp; owner situation</div>
       ${stressChips(l)}
       <div class="nums"><div class="num"><div class="why">${esc(strategy(l).why)}</div></div>${stressSignals(l).map(x => `<div class="num"><div class="why">${x.icon} <b>${esc(x.label)}:</b> ${x.why}</div></div>`).join("")}</div>
@@ -1344,6 +1469,8 @@ function openLead(id){
   };
   currentLead = l;
   renderCalc(l); renderChecklist(l); renderPayments(l); renderComps(l); renderPhotos(l);
+  loadAutoComps(l);
+  { const af = document.getElementById("authForm"); if (af) af.onclick = () => authFormPrint(l); }
   $("#offer").onclick = () => offerSheet(l);
   $("#packet").onclick = () => visitPacket(l);
   const etc = $("#estToCalc"); if (etc) etc.onclick = async () => { const e = mortgageEstimate(l);
