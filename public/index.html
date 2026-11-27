@@ -723,7 +723,8 @@ function debtsHTML(l){
   return `<div class="sect">Other debts on the house</div><div class="nums">
     ${l.lienCheckedAt ? (ps.length ? rows + `<div class="num"><div class="why">These parties were mailed the foreclosure notice (Public Trustee file, checked ${fmtDate(l.lienCheckedAt)}). Anyone with a recorded lien gets one, so each lender, HOA or government name above may be a debt that survives or must be paid.</div></div>`
       : `<div class="num"><div class="why">✅ Only the owner and occupants were mailed the foreclosure notice (checked ${fmtDate(l.lienCheckedAt)}). Junior lienholders must be notified, so a clean list is a good sign. Still order a title search.</div></div>`)
-      : `<div class="num"><div class="why">Not checked yet. The scan reads the Public Trustee's mailing list, which names every recorded lienholder.</div></div>`}
+      : countyOf(l) === "Jefferson" ? `<div class="num"><div class="why">Not checked yet. The twice-weekly scan reads Jefferson's Public Trustee mailing list, which names every recorded lienholder.</div></div>`
+      : `<div class="num"><div class="why">${esc(countyOf(l) || "This")} County's Public Trustee doesn't post who was mailed the foreclosure notice, so other liens can't be checked from here. A title search is the only reliable way.</div></div>`}
     <div class="num"><div class="why"><b>Before you pay anyone:</b> ① title search or title commitment (shows every recorded lien and judgment) · ② HOA status letter (dues owed, up to 6 months can come ahead of the mortgage) · ③ county treasurer: property taxes${l.taxOwed ? ` (<b>${money(l.taxOwed)} behind</b>)` : ""} · ④ the lender's written reinstatement quote, using the signed authorization form below.</div></div>
   </div>
   <div class="btns"><button class="btn" id="authForm">🖨 Lender authorization form</button>
