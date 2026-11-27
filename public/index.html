@@ -501,6 +501,39 @@ function fitScore0(l){
   if (strategy(l).key === "fair" && goalMode !== "flip") sc = Math.min(sc, 60); // big equity: not a sub-to target
   return {score: sc, parts, label: sc >= 70 ? "Strong" : sc >= 50 ? "Possible" : "Weak"};
 }
+function acceptChance(l){
+  const f = []; let p = 25; const add = (pts, txt) => { p += pts; f.push([pts, txt]); };
+  const ltv = ltvOf(l);
+  if (ltv == null) f.push([0, "Owed vs value unknown, so this is a rough guess"]);
+  else if (ltv > 1.05) add(14, "Owes more than it's worth: they can't sell without bringing cash, so taking over the loan is a real way out");
+  else if (ltv >= 0.9) add(25, `Owes about ${Math.round(ltv*100)}% of value: after agent fees a regular sale nets them about nothing`);
+  else if (ltv >= 0.8) add(15, `Owes about ${Math.round(ltv*100)}% of value: a sale would net them little`);
+  else if (ltv >= 0.65) add(5, `Owes about ${Math.round(ltv*100)}% of value: they have some equity to protect`);
+  else add(-12, `Owes only about ${Math.round(ltv*100)}% of value: they can sell or refinance and keep the equity`);
+  if (l.probate) add(15, "Estate in probate: heirs usually want a quick, clean exit");
+  const abs = absentee(l), yrs = yearsSince(ownedSince(l));
+  if (abs === true) add(10, "Owner doesn't live there: no move-out emotions, just a payment they want gone");
+  else if (abs === false) add(-5, "Owner lives there: moving out is a bigger decision");
+  if (l.leadType === "Both" || (l.taxOwed && l.nedDate)) add(8, "Behind on taxes too: money stress on two fronts");
+  const e = mortgageEstimate(l);
+  if (e.ok && e.behind != null && e.behind >= 8) add(6, `About ${e.behind} months behind: hard to catch up alone`);
+  const days = daysUntil(l.keyDate);
+  if (days != null && days >= 0 && days <= 45) add(10, `Sale in ${days} days: little time left for other options`);
+  else if (days != null && days > 45 && days <= 90) add(5, `Sale in ${days} days`);
+  else if (days != null && days > 120) add(-4, "Sale is months away: they may still think they'll fix it");
+  if (l.cureStatementDate) add(-10, "They asked the trustee for a cure statement: they're trying to catch up themselves");
+  if (l.bankruptcy) add(-15, "In bankruptcy: the court/trustee may need to approve any deal, and many file to keep the house");
+  if (yrs != null && yrs >= 15 && abs !== true) add(-4, `Lived there ${Math.floor(yrs)} yrs: strong attachment`);
+  p = Math.max(5, Math.min(85, Math.round(p)));
+  return {pct: p, factors: f, label: p >= 55 ? "Good chance" : p >= 35 ? "Fair chance" : "Long shot"};
+}
+function acceptHTML(l){
+  const a = acceptChance(l), c = a.pct >= 55 ? "var(--green)" : a.pct >= 35 ? "#b7791f" : "#9a9aa3";
+  return `<div class="sect">Chance they'd say yes to sub-to: <span style="color:${c}">${a.pct}% · ${a.label}</span></div>
+  <div style="height:10px;background:#eee;border-radius:6px;overflow:hidden;margin:4px 0 8px"><div style="height:100%;width:${a.pct}%;background:${c}"></div></div>
+  <div class="nums">${a.factors.map(x => `<div class="num"><div class="row"><span class="lbl">${esc(x[1])}</span><b style="color:${x[0] > 0 ? "var(--green)" : x[0] < 0 ? "var(--red)" : "inherit"}">${x[0] > 0 ? "+" : ""}${x[0] || "–"}</b></div></div>`).join("")}
+  <div class="num"><div class="why">A rough estimate from public records, not a promise. It starts at 25% (a typical cold door-knock in foreclosure) and moves with each factor above. Talking to them is the only real test.</div></div></div>`;
+}
 function stressChips(l){
   const s = stressSignals(l), st = strategy(l);
   return `<div style="display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 2px"><span title="${esc(st.why)}" style="font-size:12px;font-weight:700;color:#fff;background:${st.color};padding:2px 8px;border-radius:10px">${st.label}</span>${s.map(x => `<span title="${esc(x.why.replace(/<[^>]+>/g,""))}" style="font-size:12px;font-weight:600;background:#fff4d6;border:1px solid #e9cf7e;padding:1px 7px;border-radius:10px">${x.icon} ${esc(x.label)}</span>`).join("")}</div>`;
@@ -555,7 +588,7 @@ function cardHTML(l, mode){
   return `<article class="card" data-id="${esc(l.id)}">
     <div class="photo">${photoHTML(l)}
       <span class="tag"><i style="background:${typeColor(l.leadType)}"></i>${l.hot ? "🔥 " : ""}${esc(l.leadType === "Inbound" ? "Seller reached out" : l.leadType || "Lead")}</span>
-      <span class="subto" style="background:${subColor(fitScore(l).score)}">${goalMode === "flip" ? "Flip" : "Live-in"} ${fitScore(l).score}</span>
+      <span class="subto" style="background:${subColor(subTo(l).score)}">Sub-To ${subTo(l).score}</span>
       ${st === "New" && mode !== "feed" ? `<span class="newtag">NEW</span>` : ""}
       <button class="heart" data-heart="${esc(l.id)}" aria-label="Save">${heartSVG(l.saved)}</button>
     </div>
@@ -1211,6 +1244,7 @@ function openLead(id){
       <div class="grid2"><div><label>Original loan amount</label><input class="field" id="eOrig" inputmode="decimal" value="${l.originalLoan ?? (l.amountOwedSource === "original-loan" ? l.amountOwed ?? "" : "")}" placeholder="$ from the filing"></div>
         <div><label>Foreclosure notice (NED) date</label><input class="field" type="date" id="eNed" value="${esc(l.nedDate || "")}"></div></div>
 
+      ${acceptHTML(l)}
       <div class="sect">Best play &amp; owner situation</div>
       ${stressChips(l)}
       <div class="nums"><div class="num"><div class="why">${esc(strategy(l).why)}</div></div>${stressSignals(l).map(x => `<div class="num"><div class="why">${x.icon} <b>${esc(x.label)}:</b> ${x.why}</div></div>`).join("")}</div>
