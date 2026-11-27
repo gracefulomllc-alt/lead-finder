@@ -117,7 +117,7 @@ main{max-width:1400px;margin:0 auto;padding:0 0 calc(var(--nav) + 20px)}
 .sect{font-size:16px;font-weight:700;margin:18px 0 8px}
 .quick{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0 4px}
 .quick div{background:#f6f6f8;border-radius:10px;padding:8px;text-align:center}.quick b{display:block;font-size:15px}.quick span{font-size:11px;color:var(--muted)}
-.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:12px 0}
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:12px 0;align-items:stretch}
 .tile{border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 12px;text-align:left;cursor:pointer;min-height:92px;display:flex;flex-direction:column;gap:4px;font:inherit;color:inherit}
 .tile:active{background:#f0f4ff}.tile .ti{font-size:24px}.tile .tt{font-weight:800;font-size:15px}.tile .ts{font-size:12px;color:var(--muted);line-height:1.3}
 .tile.warn{border-color:#f0c36d;background:#fffaf0}.tile.bad{border-color:#f3a3a3;background:#fff5f5}
@@ -1342,11 +1342,11 @@ ${photo}
 
 function quickStrip(l){
   const o = offerRange(l), a = acceptChance(l), s8 = section8(l), eq = equity(l);
-  const box = (v, t) => `<div><b>${v}</b><span>${t}</span></div>`;
-  return box(valueOf(l) ? short(valueOf(l)) : "—", "value") + box(l.amountOwed != null ? short(l.amountOwed) : "—", "owed")
-    + box(eq != null ? (eq < 0 ? "−" : "") + short(Math.abs(eq)) : "—", "equity")
-    + box(a.pct + "%", "chance of yes") + box(s8 && s8.cash != null ? (s8.cash >= 0 ? "+" : "−") + short(Math.abs(s8.cash)) : "—", "Sec 8 /mo")
-    + box(o.ok ? short(o.low) + "–" + short(o.high) : "—", "offer to seller");
+  const box = (v, t) => `<div><b>${v}</b><span>${t}</span></div>`, sh = n => Math.abs(n) >= 1000 ? short(n) : money(n);
+  return box(valueOf(l) ? sh(valueOf(l)) : "—", "value") + box(l.amountOwed != null ? sh(l.amountOwed) : "—", "owed")
+    + box(eq != null ? (eq < 0 ? "−" : "") + sh(Math.abs(eq)) : "—", "equity")
+    + box(a.pct + "%", "chance of yes") + box(s8 && s8.cash != null ? (s8.cash >= 0 ? "+" : "−") + sh(Math.abs(s8.cash)) : "—", "Sec 8 /mo")
+    + box(o.ok ? sh(o.low) + "–" + sh(o.high) : "—", "offer to seller");
 }
 function leadTiles(l){
   const e = mortgageEstimate(l), f = redFlags(l), reds = f.filter(x => x[0] === "red").length, ambers = f.filter(x => x[0] === "amber").length;
@@ -1454,7 +1454,7 @@ function openLead(id){
 
       </div>
       <div class="pane" data-pane="liens" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">🚩 Liens &amp; red flags</div>
-      <div class="sect">Red flags &amp; liens</div>
+      <div class="sect">What to watch</div>
       <div class="nums">${flagsHTML(l)}</div>
       ${debtsHTML(l)}
       <div class="btns"><button class="btn primary" id="packet">🖨 Visit packet</button></div>
