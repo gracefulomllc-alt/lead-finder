@@ -535,6 +535,7 @@ function acceptChance(l){
   else if (days != null && days > 45 && days <= 90) add(5, `Sale in ${days} days`);
   else if (days != null && days > 120) add(-4, "Sale is months away: they may still think they'll fix it");
   if (l.cureStatementDate) add(-10, "They asked the trustee for a cure statement: they're trying to catch up themselves");
+  { const lp = LISTING_PTS[(l.listing || {}).status]; if (lp && lp[0]) add(lp[0], lp[1] + (lp[0] > 0 ? ": they want out" : "")); }
   if (l.bankruptcy) add(-15, "In bankruptcy: the court/trustee may need to approve any deal, and many file to keep the house");
   if (yrs != null && yrs >= 15 && abs !== true) add(-4, `Lived there ${Math.floor(yrs)} yrs: strong attachment`);
   p = Math.max(5, Math.min(85, Math.round(p)));
@@ -1071,7 +1072,7 @@ function streetViewLink(l){
 }
 
 /* ---------- deadlines, red flags, Colorado deal steps, visit packet ---------- */
-const today10 = () => new Date().toISOString().slice(0, 10);
+const today10 = () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 const daysUntil = d => d ? Math.round((new Date(d + "T12:00:00") - new Date(today10() + "T12:00:00")) / 864e5) : null;
 function usHolidays(y){
   const nth = (m, dow, n) => { const d = new Date(y, m, 1); while (d.getDay() !== dow) d.setDate(d.getDate() + 1); d.setDate(d.getDate() + 7 * (n - 1)); return d; };
@@ -1352,6 +1353,71 @@ ${photo}
 }
 
 
+
+/* ---------- sale & attempted-sale history ---------- */
+const LISTING = {
+  "": ["Not checked yet", ""],
+  never: ["No listing I could find", "Never put on the market (as far as Zillow/Redfin show). They may still think they can catch up, or don't know their options. Lead with what they'd net if they listed vs. your offer."],
+  active: ["Listed now with an agent", "They're trying to sell. Their agent controls the conversation: offer through the agent, or check back if it expires. Long days on market + foreclosure = pressure."],
+  expired: ["Listed but didn't sell (expired / withdrawn)", "They already tried to sell and it didn't work. That usually means real need and fewer options left: one of the strongest sub-to signals."],
+  cuts: ["Listed with price cuts", "Price kept dropping: the market isn't paying what they need. Ask what they'd need to walk away."],
+  fsbo: ["For sale by owner", "Selling it themselves: they want out and are open to talking directly. Move fast."],
+  pending: ["Under contract / pending", "Someone else is buying it. Stay in touch in case it falls through before the sale date."],
+  rental: ["Listed for rent", "Trying to rent it out to cover the payment: a landlord under pressure. Sub-to with you taking over the rental may fit."]
+};
+const LISTING_PTS = {expired: [12, "Tried to sell and it didn't sell"], cuts: [8, "Listed with price cuts"], fsbo: [8, "Selling it themselves"], rental: [5, "Trying to rent it to cover the payment"], active: [-6, "Listed with an agent right now"], pending: [-20, "Already under contract with a buyer"], never: [0, ""]};
+async function loadSaleRecord(l){
+  if (l.lastSaleDate || l.lat == null) return;
+  const d = 0.0001, env = [l.lng - d, l.lat - d, l.lng + d, l.lat + d].join(",");
+  const p = new URLSearchParams({where: "1=1", geometry: env, geometryType: "esriGeometryEnvelope", inSR: 4326, spatialRel: "esriSpatialRelIntersects", outFields: "situsAdd,saleDate,salePrice", returnGeometry: false, f: "json", resultRecordCount: 5});
+  try {
+    const j = await fetch(PARCELS_URL + "?" + p).then(r => r.json());
+    const a = (j.features || []).map(f => f.attributes).find(x => x.saleDate);
+    if (a) { await patch(l, {lastSaleDate: parseDate(a.saleDate), lastSalePrice: Number(a.salePrice) || null}); const box = document.getElementById("saleRec"); if (box) box.innerHTML = saleRecordHTML(l); }
+  } catch {}
+}
+function saleRecordHTML(l){
+  const sd = ownedSince(l), sp = l.lastSalePrice || Number((String(l.notes || "").match(/last sale \$([\d,]+)/) || [])[1]?.replace(/,/g, "")) || null;
+  const yrs = yearsSince(sd), V = valueOf(l), rows = [];
+  const row = (a, b, why) => `<div class="num"><div class="row"><span class="lbl">${a}</span><b>${b}</b></div>${why ? `<div class="why">${why}</div>` : ""}</div>`;
+  if (sd) rows.push(row("Last recorded sale", `${fmtDate(sd)}${sp && sp > 100 ? " · " + money(sp) : ""}`, `Owned about ${Math.floor(yrs)} year${Math.floor(yrs) === 1 ? "" : "s"}.${sp > 100 && V ? ` Value now ${money(V)} (${V >= sp ? "+" : "−"}${Math.round(Math.abs(V - sp) / sp * 100)}% since they bought).` : ""}${sp != null && sp <= 100 ? " $0 or tiny price: likely a family transfer, quitclaim or inheritance, not a market sale." : ""}`));
+  else rows.push(row("Last recorded sale", "Not found", l.lat == null ? "Needs a map pin to look it up." : "Checking county records… (some counties, like El Paso, Weld and Pueblo, don't publish sale prices in the free data)."));
+  const ld = parseDate(l.loanDate);
+  if (ld) {
+    const refi = sd && (Date.parse(ld) - Date.parse(sd)) > 90 * 864e5;
+    rows.push(row("Loan being foreclosed", `${fmtDate(ld)}${l.originalLoan ? " · " + money(l.originalLoan) : ""}`,
+      refi ? `Taken out ${Math.round((Date.parse(ld) - Date.parse(sd)) / (365.25 * 864e5))} years after they bought, so it's a <b>refinance</b>, not the purchase loan.${l.originalLoan && sp > 100 && l.originalLoan > sp ? " They borrowed more than they paid: a cash-out refi. They've pulled equity out before." : ""}`
+      : sd ? "Taken out when they bought: the original purchase loan." : "Deed of trust date from the Public Trustee file."));
+  }
+  if (l.nedDate) rows.push(row("Foreclosure notice filed", fmtDate(l.nedDate), ""));
+  return rows.join("");
+}
+function saleHistoryHTML(l){
+  const L = l.listing || {}, cur = LISTING[L.status || ""] || LISTING[""];
+  const opts = Object.entries(LISTING).map(([k, v]) => `<option value="${k}" ${k === (L.status || "") ? "selected" : ""}>${v[0]}</option>`).join("");
+  return `<div class="sect">Recorded sales &amp; loans</div><div class="nums" id="saleRec">${saleRecordHTML(l)}</div>
+  <div class="sect">Was it listed for sale?</div>
+  <div class="nums"><div class="num"><div class="why">Listings that didn't sell aren't in public records. They're in the agents' MLS, which shows up on Zillow and Redfin under <b>Price history</b> (look for <i>Listed for sale</i>, <i>Price change</i>, <i>Listing removed</i>). Check it, then pick what you see below.</div></div>
+    ${L.status ? `<div class="num" style="border-left:4px solid ${["expired","cuts","fsbo","rental"].includes(L.status) ? "var(--green)" : L.status === "pending" || L.status === "active" ? "#b7791f" : "var(--line)"}"><div class="row"><span class="lbl"><b>${esc(cur[0])}</b>${L.listDate ? " · listed " + fmtDate(L.listDate) : ""}${L.listPrice ? " at " + money(L.listPrice) : ""}${L.dom ? " · " + L.dom + " days" : ""}</span></div><div class="why">${cur[1]}${L.checkedAt ? ` <span style="color:var(--muted)">(checked ${fmtDate(L.checkedAt)})</span>` : ""}</div>${L.note ? `<div class="why">📝 ${esc(L.note)}</div>` : ""}</div>` : ""}
+  </div>
+  <div class="btns"><a class="btn" target="_blank" rel="noopener noreferrer" href="https://www.zillow.com/homes/${encodeURIComponent(fullAddr(l))}_rb/">Zillow price history ↗</a>
+    <a class="btn" target="_blank" rel="noopener noreferrer" href="${gSearch(fullAddr(l) + " redfin")}">Redfin ↗</a></div>
+  <label>What did you find?</label><select class="field" id="lsStatus">${opts}</select>
+  <div class="grid2"><div><label>Listed on</label><input class="field" type="date" id="lsDate" value="${esc(L.listDate || "")}"></div>
+    <div><label>List price</label><input class="field" id="lsPrice" inputmode="decimal" value="${L.listPrice ?? ""}" placeholder="$"></div></div>
+  <div class="grid2"><div><label>Days on market</label><input class="field" id="lsDom" inputmode="numeric" value="${L.dom ?? ""}"></div>
+    <div><label>Note</label><input class="field" id="lsNote" value="${esc(L.note || "")}" placeholder="e.g. 3 price cuts, relisted twice"></div></div>
+  <div class="btns"><button class="btn primary" id="lsSave">Save listing history</button></div>`;
+}
+function wireSaleHistory(l){
+  const b = document.getElementById("lsSave"); if (!b) return;
+  b.onclick = async () => {
+    const n = v => v === "" ? null : Number(String(v).replace(/[$,\s]/g, "")) || null;
+    const listing = {status: $("#lsStatus").value, listDate: $("#lsDate").value, listPrice: n($("#lsPrice").value), dom: n($("#lsDom").value), note: $("#lsNote").value.trim().slice(0, 300), checkedAt: today10()};
+    await patch(l, {listing}, "Listing history saved");
+    const pane = document.querySelector('.pane[data-pane="sales"] .panebody'); if (pane) { pane.innerHTML = saleHistoryHTML(l); wireSaleHistory(l); }
+  };
+}
 function quickStrip(l){
   const o = offerRange(l), a = acceptChance(l), s8 = section8(l), eq = equity(l);
   const box = (v, t) => `<div><b>${v}</b><span>${t}</span></div>`, sh = n => Math.abs(n) >= 1000 ? short(n) : money(n);
@@ -1371,6 +1437,8 @@ function leadTiles(l){
     t("loan", "🏦", "Loan & bank", [l.holder || l.lender ? esc(String(l.holder || l.lender).slice(0, 28)) : "", l.interestRate ? l.interestRate + "%" : "", e.ok ? money(e.piti) + "/mo" : ""].filter(Boolean).join(" · ") || "Payment, balance, months behind"),
     t("fc", "⚖️", "Foreclosure", ds != null ? (ds < 0 ? "Sale date passed" : `Sale in ${ds} days`) + (di != null && di >= 0 ? ` · cure intent in ${di}d` : "") : "Deadlines & catch-up amount", soon ? "bad" : ""),
     t("liens", "🚩", "Liens & red flags", reds || ambers ? `${reds ? reds + " red" : ""}${reds && ambers ? ", " : ""}${ambers ? ambers + " caution" : ""}` : "No flags found", reds ? "bad" : ambers ? "warn" : ""),
+    (() => { const L = l.listing || {}, sd = ownedSince(l); const sub = [sd ? "Bought " + sd.slice(0, 4) + (l.lastSalePrice > 100 ? " · " + short(l.lastSalePrice) : "") : "", L.status ? LISTING[L.status][0] : "Listed before? Check it"].filter(Boolean).join(" · ");
+      return t("sales", "🏷", "Sale history", sub, ["expired","cuts","fsbo"].includes(L.status) ? "warn" : ""); })(),
     t("value", "🏠", "Value & equity", valueOf(l) ? short(valueOf(l)) + (l.marketValue && valueOf(l) === l.marketValue ? " from sales" : " county value") : "Needs a value"),
     t("offer", "💰", "Offer & cash flow", o.ok ? `${short(o.low)}–${short(o.high)} to seller` : "Offer range, Section 8, calculator", o.ok && o.color === "var(--green)" ? "" : ""),
     t("play", "🎯", "Best play", esc(st.label) + (stressSignals(l).length ? ` · ${stressSignals(l).length} owner signal${stressSignals(l).length > 1 ? "s" : ""}` : "")),
@@ -1518,6 +1586,8 @@ function openLead(id){
       <details class="tool"><summary>💵 Loan payment tracker <span id="payCount"></span></summary><div id="pay"></div></details>
 
       </div>
+      <div class="pane" data-pane="sales" hidden><div class="panetitle">🏷 Sale or attempted sale history</div><div class="panebody">${saleHistoryHTML(l)}</div>
+      </div>
       <div class="pane" data-pane="photos" hidden><div class="panetitle">📷 Photos</div>
       <div class="sect">Your photos</div>
       <div id="myPhotos"></div>
@@ -1565,7 +1635,7 @@ function openLead(id){
   currentLead = l;
   wirePanes();
   renderCalc(l); renderChecklist(l); renderPayments(l); renderComps(l); renderPhotos(l);
-  loadAutoComps(l);
+  loadAutoComps(l); loadSaleRecord(l); wireSaleHistory(l);
   { const af = document.getElementById("authForm"); if (af) af.onclick = () => authFormPrint(l); }
   $("#offer").onclick = () => offerSheet(l);
   $("#packet").onclick = () => visitPacket(l);

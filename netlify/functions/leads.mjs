@@ -14,7 +14,7 @@ const FIELDS = [
   "amountOwed", "address", "city", "county", "zip", "leadType", "keyDate",
   "status", "estValue", "propertyType", "owner", "ownerMailing", "caseNumber",
   "sourceUrl", "notes", "lat", "lng", "lender", "taxOwed", "saved", "firstSeen", "amountOwedSource", "estValueSource", "phone", "lastLetter", "loanDate", "interestRate", "deal", "checklist", "payments", "hot", "email", "source", "letters", "comps", "portfolio", "sqft", "originalLoan", "nedDate", "balanceAsOf", "loanType", "holder", "ptStatus",
-  "cureIntentDeadline", "cureDeadline", "cureTotal", "cureStatementDate", "lenderBid", "bankruptcy", "lienParties", "photos", "beds", "baths", "yearBuilt", "lastSaleDate", "lastSalePrice", "probate", "lienCheckedAt", "marketValue", "marketValueSource", "marketValueAsOf", "compsN", "autoComps",
+  "cureIntentDeadline", "cureDeadline", "cureTotal", "cureStatementDate", "lenderBid", "bankruptcy", "lienParties", "photos", "beds", "baths", "yearBuilt", "lastSaleDate", "lastSalePrice", "probate", "lienCheckedAt", "marketValue", "marketValueSource", "marketValueAsOf", "compsN", "autoComps", "listing",
 ];
 
 const json = (body, status = 200) =>
@@ -60,6 +60,7 @@ function clean(input) {
   for (const k of ["letters", "comps"]) if (out[k] !== undefined && (!Array.isArray(out[k]) || JSON.stringify(out[k]).length > 20000)) delete out[k];
   if (out.portfolio !== undefined && (typeof out.portfolio !== "object" || Array.isArray(out.portfolio))) delete out.portfolio;
   if (out.photos !== undefined && (!Array.isArray(out.photos) || out.photos.length > 200)) delete out.photos;
+  if (out.listing !== undefined && (typeof out.listing !== "object" || JSON.stringify(out.listing).length > 1500)) delete out.listing;
   if (out.autoComps !== undefined && (!Array.isArray(out.autoComps) || JSON.stringify(out.autoComps).length > 4000)) delete out.autoComps;
   if (out.marketValue != null && out.marketValue !== "") out.marketValue = Number(out.marketValue) || null;
   if (out.lienParties !== undefined && (!Array.isArray(out.lienParties) || JSON.stringify(out.lienParties).length > 6000)) delete out.lienParties;
