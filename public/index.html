@@ -106,6 +106,9 @@ main{max-width:1400px;margin:0 auto;padding:0 0 calc(var(--nav) + 20px)}
 .sheet .photo{aspect-ratio:16/10}
 .close{position:absolute;top:10px;left:10px;width:36px;height:36px;border-radius:50%;border:0;background:#fff;box-shadow:0 1px 4px #0005;font-size:18px;cursor:pointer;z-index:2}
 .pad{padding:14px 16px 18px}
+.leadbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;width:100%;border:0;background:var(--blue);color:#fff;padding:14px 16px;font:inherit;font-size:17px;font-weight:800;text-align:left;cursor:pointer;min-height:58px}
+.leadbar small{display:block;font-size:12px;font-weight:600;opacity:.85}.leadbar .lb-arrow{font-size:24px;line-height:1}
+
 .dprice{font-size:30px;font-weight:800;letter-spacing:-.5px}
 .daddr{font-size:16px;color:var(--ink);margin-top:2px}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}
@@ -121,7 +124,7 @@ main{max-width:1400px;margin:0 auto;padding:0 0 calc(var(--nav) + 20px)}
 .tile{border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px 12px;text-align:left;cursor:pointer;min-height:92px;display:flex;flex-direction:column;gap:4px;font:inherit;color:inherit}
 .tile:active{background:#f0f4ff}.tile .ti{font-size:24px}.tile .tt{font-weight:800;font-size:15px}.tile .ts{font-size:12px;color:var(--muted);line-height:1.3}
 .tile.warn{border-color:#f0c36d;background:#fffaf0}.tile.bad{border-color:#f3a3a3;background:#fff5f5}
-.paneback{margin:10px 0 0}.panetitle{font-size:20px;font-weight:800;margin:10px 0 4px}
+.paneback{margin:10px 0 0}.pane,.tiles{scroll-margin-top:66px}.panetitle{font-size:20px;font-weight:800;margin:10px 0 4px}
 
 label{display:block;font-size:13px;color:var(--ink2);font-weight:600;margin:10px 0 4px}
 .field{width:100%;border:1px solid #c4c4cc;border-radius:8px;padding:10px;background:#fff}
@@ -1011,8 +1014,17 @@ async function geocodeQueue(){
 }
 
 /* ---------- detail sheet ---------- */
-function openModal(html){ $("#sheet").innerHTML = html; $("#modal").classList.add("open"); $("#sheet").scrollTop = 0; }
-function closeModal(){ $("#modal").classList.remove("open"); }
+function openModal(html){ $("#sheet").innerHTML = html; $("#modal").classList.add("open"); $("#sheet").scrollTop = 0;
+  if (!(history.state && history.state.lf)) history.pushState({lf: "modal"}, ""); }
+function reallyCloseModal(){ $("#modal").classList.remove("open"); }
+function closeModal(){ const st = history.state; if (st && st.lf) history.go(st.lf === "pane" ? -2 : -1); else reallyCloseModal(); }
+/* phone back button: closes a section first, then the property, never the whole app */
+window.addEventListener("popstate", () => {
+  const st = history.state, open = $("#modal").classList.contains("open");
+  if (!open) return;
+  if (st && st.lf === "modal") { if (window.showPane) window.showPane(null, true); }
+  else if (!(st && st.lf)) reallyCloseModal();
+});
 $("#modal").onclick = e => { if (e.target.id === "modal") closeModal(); };
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
@@ -1370,7 +1382,13 @@ function leadTiles(l){
 }
 function wirePanes(){
   const sheet = $("#sheet");
-  const show = k => {
+  const show = (k, fromBack) => {
+    if (!fromBack) {
+      if (k && !(history.state && history.state.lf === "pane")) history.pushState({lf: "pane"}, "");
+      if (!k && history.state && history.state.lf === "pane") { history.back(); return; }
+    }
+    const pn = k ? sheet.querySelector(`.pane[data-pane="${k}"] .panetitle`) : null;
+    const bar = $("#leadbar"); if (bar) bar.innerHTML = k ? `<span class="lb-arrow">←</span><span>All sections<small>${pn ? pn.textContent : ""}</small></span>` : `<span class="lb-arrow">←</span><span>Back to all houses<small>General information</small></span>`;
     sheet.querySelectorAll(".pane").forEach(p => p.hidden = p.dataset.pane !== k);
     const tl = $("#tiles"), q = sheet.querySelector(".quick"); if (tl) tl.hidden = !!k; if (q) q.hidden = !!k;
     const tgt = k ? sheet.querySelector(`.pane[data-pane="${k}"]`) : tl;
@@ -1379,6 +1397,7 @@ function wirePanes(){
   window.showPane = show;
   sheet.querySelectorAll("[data-open]").forEach(b => b.onclick = () => show(b.dataset.open));
   sheet.querySelectorAll("[data-back]").forEach(b => b.onclick = () => show(null));
+  const bar = $("#leadbar"); if (bar) bar.onclick = () => { const anyOpen = [...sheet.querySelectorAll(".pane")].some(p => !p.hidden); if (anyOpen) show(null); else closeModal(); };
 }
 function openLead(id){
   const l = leads.find(x => x.id === id); if (!l) return;
@@ -1388,6 +1407,7 @@ function openLead(id){
   const owedLbl = l.amountOwedSource === "original-loan" ? "Original loan amount" : l.leadType === "Tax-delinquent" ? "Taxes owed" : "Amount owed";
   const sel = (id, map, cur, labels) => `<select class="field" id="${id}"><option value="">Where's it from?</option>${Object.keys(labels).map(k => `<option value="${k}" ${k === cur ? "selected" : ""}>${labels[k]}</option>`).join("")}</select>`;
   openModal(`
+    <button class="leadbar" id="leadbar"><span class="lb-arrow">←</span><span>Back to all houses<small>General information</small></span></button>
     <div class="photo" style="position:relative">${photoHTML(l)}<button class="close" id="x">✕</button>
       <button class="heart" id="dHeart">${heartSVG(l.saved)}</button>
       <a class="svbtn" target="_blank" rel="noopener noreferrer" href="${streetViewLink(l)}">👁 Walk around in Street View</a></div>
@@ -1406,7 +1426,7 @@ function openLead(id){
 
       <div class="quick">${quickStrip(l)}</div>
       <div class="tiles" id="tiles">${leadTiles(l)}</div>
-      <div class="pane" data-pane="owner" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">👤 Owner</div>
+      <div class="pane" data-pane="owner" hidden><div class="panetitle">👤 Owner</div>
       <div class="sect">Owner</div>
       <div class="owner">
         <div class="nm">${esc(l.owner || "Owner not on file")}</div>
@@ -1427,7 +1447,7 @@ function openLead(id){
       </div>
 
       </div>
-      <div class="pane" data-pane="loan" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">🏦 Loan &amp; bank</div>
+      <div class="pane" data-pane="loan" hidden><div class="panetitle">🏦 Loan &amp; bank</div>
       <div class="sect">Estimated mortgage</div>
       ${(() => { const e = mortgageEstimate(l);
         if (!e.ok) return `<div class="nums"><div class="num"><div class="why">To estimate the payment and how far behind they are, add the <b>original loan amount</b> below. It's printed in the foreclosure filing ("in the original amount of $…").${l.sourceUrl ? ` <a href="${esc(l.sourceUrl)}" target="_blank" rel="noopener noreferrer">Open the filing ↗</a>` : ""}</div></div></div>`;
@@ -1448,19 +1468,19 @@ function openLead(id){
       <details class="tool" open><summary>ⓘ How do we know they're behind, and by how much?</summary><div style="padding:4px 2px">${howHTML(l)}</div></details>
 
       </div>
-      <div class="pane" data-pane="fc" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">⚖️ Foreclosure &amp; deadlines</div>
+      <div class="pane" data-pane="fc" hidden><div class="panetitle">⚖️ Foreclosure &amp; deadlines</div>
       <div class="sect">Deadlines that matter</div>
       ${deadlinesHTML(l)}
 
       </div>
-      <div class="pane" data-pane="liens" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">🚩 Liens &amp; red flags</div>
+      <div class="pane" data-pane="liens" hidden><div class="panetitle">🚩 Liens &amp; red flags</div>
       <div class="sect">What to watch</div>
       <div class="nums">${flagsHTML(l)}</div>
       ${debtsHTML(l)}
       <div class="btns"><button class="btn primary" id="packet">🖨 Visit packet</button></div>
 
       </div>
-      <div class="pane" data-pane="value" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">🏠 Value &amp; equity</div>
+      <div class="pane" data-pane="value" hidden><div class="panetitle">🏠 Value &amp; equity</div>
       <div class="sect">The numbers & how accurate they are</div>
       <div class="nums">
         <div class="num"><div class="row"><span class="lbl">${owedLbl}</span>${confPill(oc)}</div>
@@ -1478,13 +1498,13 @@ function openLead(id){
 
       <details class="tool" open><summary>🏘 Comps &amp; value check <span id="compCount"></span></summary><div id="comps"></div></details>
       </div>
-      <div class="pane" data-pane="offer" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">💰 Offer &amp; cash flow</div>
+      <div class="pane" data-pane="offer" hidden><div class="panetitle">💰 Offer &amp; cash flow</div>
       ${acceptHTML(l)}
       ${s8HTML(l)}
       ${offerHTML(l)}
       <details class="tool" id="calcBox" open><summary>🧮 Sub-to deal calculator</summary><div id="calc"></div></details>
       </div>
-      <div class="pane" data-pane="play" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">🎯 Best play &amp; owner situation</div>
+      <div class="pane" data-pane="play" hidden><div class="panetitle">🎯 Best play &amp; owner situation</div>
       <div class="sect">Best play &amp; owner situation</div>
       ${stressChips(l)}
       <div class="nums"><div class="num"><div class="why">${esc(strategy(l).why)}</div></div>${stressSignals(l).map(x => `<div class="num"><div class="why">${x.icon} <b>${esc(x.label)}:</b> ${x.why}</div></div>`).join("")}</div>
@@ -1493,16 +1513,16 @@ function openLead(id){
       <div class="sect">Sub-To fit: <span style="color:${subColor(subTo(l).score)}">${subTo(l).score} · ${subTo(l).label}</span></div>
       <div class="nums">${subTo(l).parts.map(p => `<div class="num"><div class="row"><span class="lbl">${esc(p[2])}</span><b>${p[0]}/${p[1]}</b></div></div>`).join("")}</div>
       </div>
-      <div class="pane" data-pane="steps" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">✅ Deal steps &amp; payments</div>
+      <div class="pane" data-pane="steps" hidden><div class="panetitle">✅ Deal steps &amp; payments</div>
       <details class="tool" open><summary>✅ Colorado deal steps <span id="ckCount"></span></summary><div id="ck"></div></details>
       <details class="tool"><summary>💵 Loan payment tracker <span id="payCount"></span></summary><div id="pay"></div></details>
 
       </div>
-      <div class="pane" data-pane="photos" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">📷 Photos</div>
+      <div class="pane" data-pane="photos" hidden><div class="panetitle">📷 Photos</div>
       <div class="sect">Your photos</div>
       <div id="myPhotos"></div>
       </div>
-      <div class="pane" data-pane="notes" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">📝 Status, notes &amp; edits</div>
+      <div class="pane" data-pane="notes" hidden><div class="panetitle">📝 Status, notes &amp; edits</div>
       <div class="sect">Pipeline</div>
       <div class="seg" id="seg">${STATUSES.map(s => `<button data-s="${s}" class="${s === st ? "on" : ""}">${s === "Offer Made" ? "Offer" : s}</button>`).join("")}</div>
 
@@ -1521,7 +1541,7 @@ function openLead(id){
       <div class="btns"><button class="btn primary" id="save">Save changes</button></div>
 
       </div>
-      <div class="pane" data-pane="reach" hidden><button class="btn paneback" data-back>← All sections</button><div class="panetitle">✉️ Letters, scripts &amp; packet</div>
+      <div class="pane" data-pane="reach" hidden><div class="panetitle">✉️ Letters, scripts &amp; packet</div>
       <div class="sect">Reach out</div>
       <div class="btns" style="margin-top:0"><button class="btn" id="letter">✉️ Owner letter</button><button class="btn" id="script">🚪 Door script</button><button class="btn" id="offer">📄 Offer sheet</button><button class="btn" id="replied">${l.hot ? "🔥 Replied" : "🔥 Mark replied"}</button></div>
       <div id="out"></div>
