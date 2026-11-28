@@ -107,6 +107,7 @@ main{max-width:1400px;margin:0 auto;padding:0 0 calc(var(--nav) + 20px)}
 .close{position:absolute;top:10px;left:10px;width:36px;height:36px;border-radius:50%;border:0;background:#fff;box-shadow:0 1px 4px #0005;font-size:18px;cursor:pointer;z-index:2}
 .pad{padding:14px 16px 18px}
 .leadbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;width:100%;border:0;background:var(--blue);color:#fff;padding:14px 16px;font:inherit;font-size:17px;font-weight:800;text-align:left;cursor:pointer;min-height:58px}
+.bigback{display:block;width:100%;margin:18px 0 6px;padding:18px 16px;border:0;border-radius:14px;background:var(--blue);color:#fff;font:inherit;font-size:18px;font-weight:800;cursor:pointer}.bigback[hidden]{display:none}
 .leadbar small{display:block;font-size:12px;font-weight:600;opacity:.85}.leadbar .lb-arrow{font-size:24px;line-height:1}
 
 .dprice{font-size:30px;font-weight:800;letter-spacing:-.5px}
@@ -1458,11 +1459,14 @@ function wirePanes(){
     const pn = k ? sheet.querySelector(`.pane[data-pane="${k}"] .panetitle`) : null;
     const bar = $("#leadbar"); if (bar) bar.innerHTML = k ? `<span class="lb-arrow">←</span><span>All sections<small>${pn ? pn.textContent : ""}</small></span>` : `<span class="lb-arrow">←</span><span>Back to all houses<small>General information</small></span>`;
     sheet.querySelectorAll(".pane").forEach(p => p.hidden = p.dataset.pane !== k);
-    const tl = $("#tiles"), q = sheet.querySelector(".quick"); if (tl) tl.hidden = !!k; if (q) q.hidden = !!k;
+    const tl = $("#tiles"), q = sheet.querySelector(".quick"), bh = sheet.querySelector(".bigback-home"); if (tl) tl.hidden = !!k; if (q) q.hidden = !!k; if (bh) bh.hidden = !!k; const dl = $("#del"); if (dl) dl.parentElement.hidden = !!k;
     const tgt = k ? sheet.querySelector(`.pane[data-pane="${k}"]`) : tl;
     if (tgt) setTimeout(() => tgt.scrollIntoView({block: "start", behavior: "smooth"}), 30);
   };
   window.showPane = show;
+  sheet.querySelectorAll(".pane").forEach(p => { if (!p.querySelector(".bigback")) p.insertAdjacentHTML("beforeend", `<button class="bigback" data-back>← Back to all sections</button>`); });
+  if (!sheet.querySelector(".bigback-home")) { const tl = $("#tiles"); if (tl) tl.insertAdjacentHTML("afterend", `<button class="bigback bigback-home">← Back to all houses</button>`); }
+  sheet.querySelectorAll(".bigback-home").forEach(b => b.onclick = () => closeModal());
   sheet.querySelectorAll("[data-open]").forEach(b => b.onclick = () => show(b.dataset.open));
   sheet.querySelectorAll("[data-back]").forEach(b => b.onclick = () => show(null));
   const bar = $("#leadbar"); if (bar) bar.onclick = () => { const anyOpen = [...sheet.querySelectorAll(".pane")].some(p => !p.hidden); if (anyOpen) show(null); else closeModal(); };
