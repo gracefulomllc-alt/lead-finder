@@ -586,7 +586,7 @@ function homeInfo(l){
   const n = String(l.notes || "");
   const num = re => { const m = n.match(re); return m ? +m[1].replace(/,/g, "") : null; };
   return {beds: l.beds ?? num(/(\d+)\s*bd\b/), baths: l.baths ?? num(/(\d+(?:\.\d+)?)\s*ba\b/),
-    sqft: l.sqft ?? num(/([\d,]{3,6})\s*sq\s*ft/), year: l.yearBuilt ?? num(/built\s+(\d{4})/)};
+    sqft: l.sqft ?? num(/(?<!lot\s|land\s|lot size\s|acre\w*\s)(?<![\d,])([\d,]{3,6})\s*(?:finished\s+|living\s+)?sq\s*ft(?!\s*lot)/i), year: l.yearBuilt ?? num(/built\s+(\d{4})/)};
 }
 function homeFacts(l){
   const h = homeInfo(l);
@@ -1611,6 +1611,14 @@ function openLead(id){
         <div><label>Owner phone</label><input class="field" id="ePhone" type="tel" value="${esc(l.phone || "")}" placeholder="Only if they gave it to you"></div>
         <div><label>Owner mailing address</label><input class="field" id="eMail" value="${esc(l.ownerMailing || "")}" placeholder="Street, City, ST 12345"></div>
       </div>
+      <div class="grid2">
+        <div><label>Beds</label><input class="field" id="eBeds" inputmode="decimal" value="${l.beds ?? ""}"></div>
+        <div><label>Baths</label><input class="field" id="eBaths" inputmode="decimal" value="${l.baths ?? ""}"></div>
+      </div>
+      <div class="grid2">
+        <div><label>Living sq ft ${l.sqftSource === "you" ? "(yours)" : "(county record)"}</label><input class="field" id="eSqft" inputmode="numeric" value="${l.sqft ?? ""}"></div>
+        <div><label>Year built</label><input class="field" id="eYear" inputmode="numeric" value="${l.yearBuilt ?? ""}"></div>
+      </div>
       <label>Notes</label><textarea class="field" id="eNotes">${esc(l.notes || "")}</textarea>
       <div class="btns"><button class="btn primary" id="save">Save changes</button></div>
 
@@ -1628,10 +1636,12 @@ function openLead(id){
     $("#seg").querySelectorAll("button").forEach(x => x.classList.toggle("on", x === b)); patch(l, {status: b.dataset.s}, "Moved to " + b.dataset.s); };
   $("#save").onclick = async () => {
     const ch = {originalLoan: $("#eOrig").value, nedDate: $("#eNed").value, loanDate: $("#eLoanDate").value, interestRate: $("#eRate").value, phone: $("#ePhone").value.trim(), ownerMailing: $("#eMail").value.trim(), notes: $("#eNotes").value, estValue: $("#eVal").value, amountOwed: $("#eOwed").value,
-      amountOwedSource: $("#eOwedSrc").value, estValueSource: $("#eValSrc").value};
+      amountOwedSource: $("#eOwedSrc").value, estValueSource: $("#eValSrc").value,
+      beds: $("#eBeds").value, baths: $("#eBaths").value, sqft: $("#eSqft").value, yearBuilt: $("#eYear").value};
     const num = v => v === "" ? null : Number(String(v).replace(/[$,\s]/g, ""));
     if (num(ch.amountOwed) !== l.amountOwed && !ch.amountOwedSource) ch.amountOwedSource = "manual";
     if (num(ch.estValue) !== l.estValue && !ch.estValueSource) ch.estValueSource = "manual";
+    if (num(ch.sqft) !== (l.sqft ?? null)) ch.sqftSource = "you";
     await patch(l, ch);
     const fresh = await api("GET").catch(() => null); if (fresh) { leads = fresh.leads; render(); }
     toast("Saved"); closeModal();
